@@ -1,98 +1,71 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from "react";
+import { View, Text, Pressable, ScrollView, useWindowDimensions } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { TRIPS } from "../../lib/trips";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Recherche() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
 
-export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView className="flex-1 bg-white">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 pt-4">
+        <View className={`w-full ${isTablet ? "max-w-xl self-center" : ""}`}>
+          <Text className="text-2xl font-medium text-gray-900 mb-1">
+            Où allez-vous ?
+          </Text>
+          <Text className="text-sm text-gray-500 mb-6">
+            Trouvez un trajet disponible près de chez vous
+          </Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+          <View className="border border-gray-200 rounded-2xl p-4 mb-8">
+            <View className="flex-row items-center border-b border-gray-100 pb-3 mb-3">
+              <Ionicons name="radio-button-on-outline" size={18} color="#185FA5" />
+              <Text className="text-sm text-gray-500 ml-3">{from || "Départ"}</Text>
+            </View>
+            <View className="flex-row items-center">
+              <Ionicons name="location-outline" size={18} color="#A32D2D" />
+              <Text className="text-sm text-gray-500 ml-3">{to || "Destination"}</Text>
+            </View>
+          </View>
+
+          <Pressable className="bg-primary-600 rounded-xl py-4 items-center mb-8 active:opacity-80">
+            <Text className="text-white text-base font-medium">
+              Rechercher un trajet
+            </Text>
+          </Pressable>
+
+          <Text className="text-base font-medium text-gray-900 mb-3">
+            Trajets récents
+          </Text>
+          {TRIPS.map((trip) => (
+            <Pressable
+              key={trip.id}
+              onPress={() => router.push(`/trip/${trip.id}`)}
+              className="border border-gray-100 rounded-xl p-4 mb-3 flex-row justify-between items-center active:opacity-70"
+            >
+              <View>
+                <Text className="text-sm font-medium text-gray-900">
+                  {trip.from} → {trip.to}
+                </Text>
+                <Text className="text-xs text-gray-500 mt-1">
+                  {trip.date}, {trip.time}
+                </Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-sm font-medium text-primary-600">
+                  {trip.price.toLocaleString("fr-FR")} FCFA
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginTop: 4 }} />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
