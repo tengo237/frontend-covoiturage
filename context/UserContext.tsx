@@ -4,6 +4,8 @@ type Vehicle = {
   brand: string;
   model: string;
   plate: string;
+  color?: string;
+  seats?: string;
 };
 
 type Profile = {
@@ -20,6 +22,7 @@ type UserContextType = {
   isAdmin: boolean;
   vehicle: Vehicle | null;
   registerVehicle: (vehicle: Vehicle) => void;
+  updateVehicle: (fields: Partial<Vehicle>) => void;
   loginAsAdmin: () => void;
 };
 
@@ -35,8 +38,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isDriver, setIsDriver] = useState(false);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   // TODO: en production, isAdmin doit venir de la réponse de connexion
-  // de votre backend (JWT/session), jamais être modifiable côté client
-  // en dehors de ce flux de connexion admin dédié.
+  // de votre backend, jamais être modifiable côté client en dehors de
+  // ce flux de connexion admin dédié.
   const [isAdmin, setIsAdmin] = useState(false);
 
   const updateProfile = (fields: Partial<Profile>) =>
@@ -46,6 +49,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setVehicle(v);
     setIsDriver(true);
   };
+
+  // Distinct de registerVehicle : sert à modifier un véhicule déjà
+  // enregistré (nouvelle immatriculation, changement de marque, etc.)
+  // sans toucher au statut conducteur.
+  const updateVehicle = (fields: Partial<Vehicle>) =>
+    setVehicle((v) => (v ? { ...v, ...fields } : v));
 
   const loginAsAdmin = () => setIsAdmin(true);
 
@@ -58,6 +67,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isAdmin,
         vehicle,
         registerVehicle,
+        updateVehicle,
         loginAsAdmin,
       }}
     >

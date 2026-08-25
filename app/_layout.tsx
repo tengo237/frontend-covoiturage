@@ -47,10 +47,13 @@ export default function RootLayout() {
           <Stack.Screen name="phone-login" />
           <Stack.Screen name="admin-login" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(driver)" />
           <Stack.Screen name="(admin)" />
           <Stack.Screen name="add-vehicle" />
           <Stack.Screen name="vehicle-submitted" />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="edit-vehicle" />
+          <Stack.Screen name="publish-trip" />
         </Stack>
       </SafeAreaProvider>
     </UserProvider>

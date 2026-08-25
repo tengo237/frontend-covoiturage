@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AnimatedPressable from "../components/AnimatedPressable";
+import { useUser } from "../context/UserContext";
 
 function RouteDivider() {
   return (
@@ -18,8 +19,12 @@ function RouteDivider() {
 export default function Login() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
+  const { isDriver } = useUser();
 
-  const handleGoogleLogin = () => router.replace("/(tabs)");
+  // Atterrissage automatique dans l'espace conducteur si le compte l'est déjà.
+  const landingRoute = isDriver ? "/(driver)" : "/(tabs)";
+
+  const handleGoogleLogin = () => router.replace(landingRoute);
   const handlePhoneLogin = () => router.push("/phone-login");
 
   return (

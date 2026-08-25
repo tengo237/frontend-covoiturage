@@ -10,9 +10,7 @@ const MENU_ITEMS: {
   label: string;
   route?: string;
 }[] = [
-  { icon: "car-outline", label: "Mes trajets" },
   { icon: "cube-outline", label: "Mes colis" },
-  { icon: "star-outline", label: "Avis reçus" },
   { icon: "shield-checkmark-outline", label: "Contacts d'urgence" },
   { icon: "card-outline", label: "Moyens de paiement" },
   { icon: "settings-outline", label: "Paramètres", route: "/(tabs)/settings" },
@@ -47,24 +45,23 @@ export default function Profil() {
             </Text>
           </Pressable>
 
-          <View
-            className={`flex-row items-center mt-4 px-3 py-1 rounded-full ${
-              isDriver ? "bg-success-50" : "bg-brun/5"
-            }`}
-          >
-            <Ionicons
-              name={isDriver ? "car-sport" : "person"}
-              size={14}
-              color={isDriver ? "#0F6E56" : "#8C7A6B"}
-            />
-            <Text
-              className={`font-body-medium text-xs ml-1.5 ${
-                isDriver ? "text-success-600" : "text-brun-muted"
-              }`}
+          {isDriver ? (
+            <Pressable
+              onPress={() => router.replace("/(driver)")}
+              className="flex-row items-center mt-4 px-4 py-2 rounded-full bg-success-50 active:opacity-70"
             >
-              {isDriver ? `Conducteur — ${vehicle?.brand} ${vehicle?.model}` : "Passager"}
-            </Text>
-          </View>
+              <Ionicons name="car-sport" size={14} color="#0F6E56" />
+              <Text className="font-body-medium text-xs text-success-600 ml-1.5">
+                Accéder à mon espace conducteur
+              </Text>
+              <Ionicons name="arrow-forward" size={12} color="#0F6E56" style={{ marginLeft: 6 }} />
+            </Pressable>
+          ) : (
+            <View className="flex-row items-center mt-4 px-3 py-1 rounded-full bg-brun/5">
+              <Ionicons name="person" size={14} color="#8C7A6B" />
+              <Text className="font-body-medium text-xs text-brun-muted ml-1.5">Passager</Text>
+            </View>
+          )}
         </View>
 
         {MENU_ITEMS.map((item) => (
