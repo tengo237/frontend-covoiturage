@@ -17,7 +17,14 @@ const MENU_ITEMS: {
 ];
 
 export default function Profil() {
-  const { profile, isDriver, vehicle } = useUser();
+  const { profile, isDriver, vehicle, signOut } = useUser();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace("/login");
+  };
+
+  if (!profile) return null;
 
   return (
     <SafeAreaView className="flex-1 bg-creme">
@@ -40,9 +47,7 @@ export default function Profil() {
           <Text className="font-body text-brun-muted text-sm">{profile.email}</Text>
 
           <Pressable onPress={() => router.push("/edit-profile")} className="mt-2">
-            <Text className="font-body-medium text-teal-600 text-xs underline">
-              Modifier le profil
-            </Text>
+            <Text className="font-body-medium text-teal-600 text-xs underline">Modifier le profil</Text>
           </Pressable>
 
           {isDriver ? (
@@ -78,7 +83,7 @@ export default function Profil() {
           </Pressable>
         ))}
 
-        <Pressable onPress={() => router.replace("/login")} className="mt-8 mb-10 items-center">
+        <Pressable onPress={handleLogout} className="mt-8 mb-10 items-center">
           <Text className="font-body-medium text-sm text-danger-600">Se déconnecter</Text>
         </Pressable>
       </ScrollView>

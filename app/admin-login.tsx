@@ -1,25 +1,50 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, useWindowDimensions } from "react-native";
+import { View, Text, TextInput, Pressable, Alert, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import AnimatedPressable from "../components/AnimatedPressable";
+import { supabase } from "../lib/supabase";
 import { useUser } from "../context/UserContext";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { loginAsAdmin } = useUser();
+  const [loading, setLoading] = useState(false);
+  const { refreshProfile } = useUser();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
 
   const isValid = email.length > 3 && password.length >= 6;
 
-  const handleLogin = () => {
-    // TODO: vérifier email/mot de passe auprès de votre backend,
-    // et ne considérer l'utilisateur admin que si le backend le confirme.
-    loginAsAdmin();
-    router.replace("/(admin)");
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      await refreshProfile();
+
+      // Vérifie explicitement le rôle admin en base — jamais fait confiance
+      // au client seul.
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", data.user.id)
+        .single();
+
+      if (!profileRow?.is_admin) {
+        await supabase.auth.signOut();
+        Alert.alert("Accès refusé", "Ce compte n'a pas les droits administrateur.");
+        return;
+      }
+
+      router.replace("/(admin)");
+    } catch (err: any) {
+      Alert.alert("Erreur", err.message ?? "Connexion impossible.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,11 +90,11 @@ export default function AdminLogin() {
 
           <AnimatedPressable
             onPress={handleLogin}
-            disabled={!isValid}
-            className={`rounded-2xl py-4 items-center ${isValid ? "bg-brun" : "bg-brun/10"}`}
+            disabled={!isValid || loading}
+            className={`rounded-2xl py-4 items-center ${isValid && !loading ? "bg-brun" : "bg-brun/10"}`}
           >
-            <Text className={`font-body-semibold text-base ${isValid ? "text-creme" : "text-brun-muted"}`}>
-              Se connecter
+            <Text className={`font-body-semibold text-base ${isValid && !loading ? "text-creme" : "text-brun-muted"}`}>
+              {loading ? "Vérification…" : "Se connecter"}
             </Text>
           </AnimatedPressable>
         </View>

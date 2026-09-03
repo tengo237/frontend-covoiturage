@@ -6,8 +6,6 @@ import { useUser } from "../../context/UserContext";
 export default function DriverLayout() {
   const { isDriver } = useUser();
 
-  // Un utilisateur qui n'est pas encore conducteur ne doit jamais atterrir
-  // ici (lien direct, retour arrière, etc.) — on le renvoie côté passager.
   if (!isDriver) {
     return <Redirect href="/(tabs)" />;
   }
@@ -27,6 +25,13 @@ export default function DriverLayout() {
         options={{
           title: "Trajets",
           tabBarIcon: ({ color, size }) => <Ionicons name="car-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="live"
+        options={{
+          title: "Live",
+          tabBarIcon: ({ color, size }) => <Ionicons name="videocam-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -4,8 +4,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-const MAP_URL =
-  "https://staticmap.openstreetmap.de/staticmap.php?center=4.46,10.56&zoom=7&size=600x500&maptype=mapnik";
+const GEOAPIFY_KEY = process.env.EXPO_PUBLIC_GEOAPIFY_KEY;
+
+const MAP_URL = `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=600&height=500&center=lonlat:10.56,4.46&zoom=7&apiKey=${GEOAPIFY_KEY}`;
 const MAP_ASPECT = 600 / 500;
 
 type ActiveTrip = {
@@ -54,6 +55,12 @@ export default function AdminSuivi() {
         <Text className="font-display-bold text-brun text-xl">Trajets en direct</Text>
       </View>
 
+      {!GEOAPIFY_KEY && (
+        <Text className="font-body text-xs text-danger-600 text-center mb-2 px-6">
+          Clé Geoapify manquante — ajoutez EXPO_PUBLIC_GEOAPIFY_KEY dans .env
+        </Text>
+      )}
+
       <ScrollView className="px-6">
         <View
           style={{ width: mapWidth, height: mapHeight, alignSelf: "center" }}
@@ -64,10 +71,7 @@ export default function AdminSuivi() {
             const x = lerp(t.start.x, t.end.x, t.progress);
             const y = lerp(t.start.y, t.end.y, t.progress);
             return (
-              <View
-                key={t.id}
-                style={{ position: "absolute", left: `${x}%`, top: `${y}%`, marginLeft: -14, marginTop: -14 }}
-              >
+              <View key={t.id} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, marginLeft: -14, marginTop: -14 }}>
                 <View
                   className={`w-7 h-7 rounded-full items-center justify-center border-2 border-white shadow ${
                     t.sos ? "bg-danger-600" : "bg-success-600"
@@ -83,9 +87,7 @@ export default function AdminSuivi() {
         {trips.map((item) => (
           <View
             key={item.id}
-            className={`border rounded-2xl p-4 mb-3 ${
-              item.sos ? "border-danger-400 bg-danger-50" : "bg-white border-brun/10"
-            }`}
+            className={`border rounded-2xl p-4 mb-3 ${item.sos ? "border-danger-400 bg-danger-50" : "bg-white border-brun/10"}`}
           >
             <View className="flex-row justify-between items-center mb-2">
               <Text className="font-body-semibold text-sm text-brun">
