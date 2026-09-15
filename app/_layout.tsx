@@ -17,6 +17,30 @@ import { UserProvider } from "../context/UserContext";
 
 SplashScreen.preventAutoHideAsync();
 
+function RootLayoutContent() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animationEnabled: true,
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="phone-login" />
+      <Stack.Screen name="admin-login" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(driver)" />
+      <Stack.Screen name="(admin)" />
+      <Stack.Screen name="add-vehicle" />
+      <Stack.Screen name="vehicle-submitted" />
+      <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="edit-vehicle" />
+      <Stack.Screen name="publish-trip" />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Sora_600SemiBold,
@@ -27,34 +51,19 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <UserProvider>
       <SafeAreaProvider>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            gestureEnabled: true,
-            gestureDirection: "horizontal",
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="phone-login" />
-          <Stack.Screen name="admin-login" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(driver)" />
-          <Stack.Screen name="(admin)" />
-          <Stack.Screen name="add-vehicle" />
-          <Stack.Screen name="vehicle-submitted" />
-          <Stack.Screen name="edit-profile" />
-          <Stack.Screen name="edit-vehicle" />
-          <Stack.Screen name="publish-trip" />
-        </Stack>
+        <RootLayoutContent />
       </SafeAreaProvider>
     </UserProvider>
   );

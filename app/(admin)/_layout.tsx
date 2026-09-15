@@ -1,13 +1,27 @@
 import React from "react";
-import { Redirect, Stack } from "expo-router";
+import { View } from "react-native";
+import { Stack } from "expo-router";
 import { useUser } from "../../context/UserContext";
 
 export default function AdminLayout() {
-  const { isAdmin } = useUser();
+  const { isAdmin, loading } = useUser();
 
-  if (!isAdmin) {
-    return <Redirect href="/(tabs)" />;
+  // ✅ Si en cours de chargement, afficher rien
+  if (loading) {
+    return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // ✅ Si pas admin, afficher une vue vide (pas de redirection)
+  if (!isAdmin) {
+    return <View style={{ flex: 1 }} />;
+  }
+
+  // ✅ Admin connecté, afficher le layout
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    />
+  );
 }

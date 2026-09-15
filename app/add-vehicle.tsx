@@ -125,6 +125,7 @@ function PhotoPicker({
 export default function AddVehicle() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
   const { registerVehicle } = useUser();
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
@@ -201,14 +202,47 @@ export default function AddVehicle() {
   const goNext = () => {
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
+  
   const goBack = () => {
     if (step === 0) router.back();
     else setStep((s) => s - 1);
   };
 
-  const handleSubmit = () => {
-    registerVehicle({ brand: form.brand, model: form.model, plate: form.plate });
-    router.replace("/vehicle-submitted");
+  // ✅ FONCTION CORRIGÉE - SANS VALIDATION STRICTE (pas de backend)
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      // Appeler registerVehicle SANS validation stricte
+      // Utiliser les valeurs ou "Non spécifié" si vides
+      await registerVehicle({
+        brand: form.brand.trim() || "Non spécifié",
+        model: form.model.trim() || "Non spécifié",
+        plate: form.plate.trim() || "Non spécifié",
+        color: form.color.trim() || undefined,
+        seats: form.seats.trim() || undefined,
+      });
+
+      // Afficher succès
+      Alert.alert("Succès", "Véhicule enregistré avec succès!", [
+        {
+          text: "OK",
+          onPress: () => {
+            router.replace("/vehicle-submitted");
+          },
+        },
+      ]);
+
+      // Réinitialiser
+      setForm(EMPTY_FORM);
+      setStep(0);
+    } catch (err: any) {
+      Alert.alert(
+        "Erreur",
+        err.message || "Impossible d'enregistrer le véhicule"
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -349,11 +383,13 @@ export default function AddVehicle() {
           <View className="py-6">
             <AnimatedPressable
               onPress={step === STEPS.length - 1 ? handleSubmit : goNext}
-              disabled={!isStepValid()}
+              disabled={!isStepValid() || submitting}
               className={`rounded-2xl py-4 items-center ${isStepValid() ? "bg-terre-600" : "bg-brun/10"}`}
             >
               <Text className={`font-body-semibold text-base ${isStepValid() ? "text-creme" : "text-brun-muted"}`}>
-                {step === STEPS.length - 1 ? "Confirmer et devenir conducteur" : "Continuer"}
+                {step === STEPS.length - 1 
+                  ? submitting ? "Enregistrement..." : "Confirmer et devenir conducteur" 
+                  : "Continuer"}
               </Text>
             </AnimatedPressable>
           </View>

@@ -1,33 +1,47 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useUser } from "../../context/UserContext";
 
 export default function TabsLayout() {
+  const { loading } = useUser();
+
+  // ✅ Si en cours de chargement, afficher rien
+  if (loading) {
+    return null;
+  }
+
+  // ✅ Afficher le layout passager
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#185FA5",
-        tabBarInactiveTintColor: "#9CA3AF",
-        tabBarStyle: { height: 60, paddingBottom: 8, paddingTop: 6 },
+        tabBarActiveTintColor: "#D85A30",
+        tabBarInactiveTintColor: "#8C7A6B",
+        tabBarStyle: {
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 6,
+          backgroundColor: "#FBF6EF",
+        },
         tabBarLabelStyle: { fontSize: 11 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Recherche",
+          title: "Accueil",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" size={size} color={color} />
+            <Ionicons name="home-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="publier"
+        name="search"
         options={{
-          title: "Publier",
+          title: "Rechercher",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle-outline" size={size} color={color} />
+            <Ionicons name="search-outline" size={size} color={color} />
           ),
         }}
       />
@@ -46,6 +60,15 @@ export default function TabsLayout() {
           title: "Profil",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Paramètres",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />
