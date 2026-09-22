@@ -1,38 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * ========================================
- * USER CONTEXT - VERSION SIMPLIFIÉE
- * ========================================
- * Sans redirections automatiques pour éviter boucles infinies
- */
+const API_BASE_URL = 'http://12.0.3.9:8000';
 
 // ============================================
 // TYPES & INTERFACES
 // ============================================
 
-export type UserRole = 'passenger' | 'driver';
-
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   photo_url?: string;
-  roles: UserRole[];
-  current_role: UserRole;
-  is_admin?: boolean;
+  roles: string;
+  current_role: string;
+  is_admin: boolean;
   created_at: string;
-}
-
-export interface Vehicle {
-  id?: string;
-  brand: string;
-  model: string;
-  plate: string;
-  color?: string;
-  seats?: string;
+  updated_at: string;
 }
 
 export interface LoginCredentials {
@@ -40,88 +25,17 @@ export interface LoginCredentials {
   password: string;
 }
 
-export interface SignupData {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
-}
-
 interface UserContextType {
   user: User | null;
+  token: string | null;
   loading: boolean;
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
-  signup: (data: SignupData) => Promise<void>;
+  signup: (data: any) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<User>) => Promise<void>;
-  becomeDriver: () => Promise<void>;
-  registerVehicle: (vehicle: Vehicle) => Promise<void>;
-  switchRole: (role: UserRole) => Promise<void>;
+  updateUser: () => Promise<void>;  // ✅ NOUVEAU
   clearError: () => void;
-  isDriver: boolean;
-  isPassenger: boolean;
-  isAdmin: boolean;
 }
-
-// ============================================
-// DONNÉES MOCK LOCALES
-// ============================================
-
-const MOCK_USERS: Record<string, { user: User; password: string }> = {
-  'test@example.com': {
-    password: 'password123',
-    user: {
-      id: '1',
-      name: 'Jean Dupont',
-      email: 'test@example.com',
-      phone: '+237670123456',
-      roles: ['passenger', 'driver'],
-      current_role: 'driver',
-      is_admin: false,
-      created_at: new Date().toISOString(),
-    },
-  },
-  'admin@example.com': {
-    password: 'admin123',
-    user: {
-      id: '2',
-      name: 'Admin User',
-      email: 'admin@example.com',
-      phone: '+237670654321',
-      roles: ['passenger'],
-      current_role: 'passenger',
-      is_admin: true,
-      created_at: new Date().toISOString(),
-    },
-  },
-  'passenger@example.com': {
-    password: 'password123',
-    user: {
-      id: '3',
-      name: 'Marie Smith',
-      email: 'passenger@example.com',
-      phone: '+237670999999',
-      roles: ['passenger'],
-      current_role: 'passenger',
-      is_admin: false,
-      created_at: new Date().toISOString(),
-    },
-  },
-};
-
-// ============================================
-// VALIDATION
-// ============================================
-
-const validateEmail = (email: string): boolean => {
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return regex.test(email);
-};
-
-const validatePassword = (password: string): boolean => {
-  return password.length >= 6;
-};
 
 // ============================================
 // CRÉATION DU CONTEXTE
@@ -135,32 +49,46 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  // ✅ Charger l'utilisateur au démarrage (UNE SEULE FOIS)
+  // Charger la session au démarrage (UNE SEULE FOIS)
   useEffect(() => {
     if (!initialized) {
-      const initializeUser = async () => {
-        try {
-          const savedUser = await AsyncStorage.getItem('user');
-          if (savedUser) {
-            setUser(JSON.parse(savedUser));
-          }
-        } catch (err) {
-          console.error('Erreur lors du chargement du profil:', err);
-        } finally {
-          setInitialized(true);
-        }
-      };
-
-      initializeUser();
+      restoreSession();
+      setInitialized(true);
     }
   }, [initialized]);
 
+  const restoreSession = async () => {
+    try {
+      console.log('🔵 Restauration de la session...');
+      setLoading(true);
+
+      const storedToken = await AsyncStorage.getItem('userToken');
+      const storedUser = await AsyncStorage.getItem('user');
+
+      console.log('💾 Token stocké:', storedToken ? storedToken.slice(0, 30) + '...' : 'NON');
+      console.log('💾 User stocké:', storedUser ? 'OUI' : 'NON');
+
+      if (storedToken && storedUser) {
+        console.log('✅ Session restaurée');
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } else {
+        console.log('⚠️ Pas de session sauvegardée');
+      }
+    } catch (err) {
+      console.error('🔴 Erreur restauration:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ============================================
-  // LOGIN
+  // LOGIN - VRAI BACKEND
   // ============================================
 
   const login = async (credentials: LoginCredentials) => {
@@ -170,28 +98,42 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       const { email, password } = credentials;
 
-      if (!email || !password) {
-        throw new Error('Email et mot de passe requis');
+      console.log('🔵 Login attempt for:', email);
+      console.log('🌐 Backend URL:', API_BASE_URL);
+
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      console.log('📩 Réponse status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Email ou mot de passe incorrect');
       }
 
-      if (!validateEmail(email)) {
-        throw new Error('Format email invalide');
-      }
+      const data = await response.json();
+      console.log('🟢 Login success:', data.user.email);
+      console.log('🔐 Token reçu:', data.token.slice(0, 30) + '...');
 
-      if (!validatePassword(password)) {
-        throw new Error('Mot de passe trop court (minimum 6 caractères)');
-      }
+      // Sauvegarder token ET user
+      await AsyncStorage.setItem('userToken', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-      const mockUser = MOCK_USERS[email];
-      if (!mockUser || mockUser.password !== password) {
-        throw new Error('Email ou mot de passe incorrect');
-      }
+      console.log('💾 Token et user sauvegardés');
 
-      await AsyncStorage.setItem('user', JSON.stringify(mockUser.user));
-      setUser(mockUser.user);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur de connexion';
-      setError(errorMessage);
+      // Mettre à jour l'état
+      setToken(data.token);
+      setUser(data.user);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur de connexion';
+      console.error('🔴 Login error:', message);
+      setError(message);
       throw err;
     } finally {
       setLoading(false);
@@ -199,51 +141,94 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ============================================
-  // SIGNUP
+  // SIGNUP - VRAI BACKEND
   // ============================================
 
-  const signup = async (data: SignupData) => {
+  const signup = async (data: any) => {
     try {
       setLoading(true);
       setError(null);
 
-      const { name, email, phone, password } = data;
+      console.log('🔵 Signup attempt for:', data.email);
 
-      if (!name || !email || !password) {
-        throw new Error('Tous les champs sont requis');
+      const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      console.log('📩 Réponse status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erreur lors de l\'inscription');
       }
 
-      if (!validateEmail(email)) {
-        throw new Error('Format email invalide');
-      }
+      const result = await response.json();
+      console.log('🟢 Signup success');
+      console.log('🔐 Token reçu:', result.token.slice(0, 30) + '...');
 
-      if (!validatePassword(password)) {
-        throw new Error('Mot de passe trop court (minimum 6 caractères)');
-      }
+      // Sauvegarder token ET user
+      await AsyncStorage.setItem('userToken', result.token);
+      await AsyncStorage.setItem('user', JSON.stringify(result.user));
 
-      if (MOCK_USERS[email]) {
-        throw new Error('Cet email est déjà utilisé');
-      }
+      console.log('💾 Token et user sauvegardés');
 
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        name,
-        email,
-        phone,
-        roles: ['passenger'],
-        current_role: 'passenger',
-        is_admin: false,
-        created_at: new Date().toISOString(),
-      };
-
-      await AsyncStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de l\'inscription';
-      setError(errorMessage);
+      // Mettre à jour l'état
+      setToken(result.token);
+      setUser(result.user);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur';
+      console.error('🔴 Signup error:', message);
+      setError(message);
       throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ============================================
+  // UPDATE USER - ✅ NOUVEAU
+  // ============================================
+
+  const updateUser = async () => {
+    try {
+      if (!token) {
+        console.log('⚠️ Pas de token disponible');
+        return;
+      }
+
+      console.log('🔵 Rafraîchissement des données utilisateur...');
+
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📩 Status:', response.status);
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du rafraîchissement');
+      }
+
+      const data = await response.json();
+      console.log('🟢 Données utilisateur mises à jour');
+
+      // Mettre à jour l'état et AsyncStorage
+      setUser(data.user);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+      console.log('💾 User mis à jour dans AsyncStorage');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur';
+      console.error('🔴 Erreur updateUser:', message);
+      setError(message);
     }
   };
 
@@ -254,132 +239,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       setLoading(true);
-      setError(null);
+      console.log('🔴 Logout...');
+
+      await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('user');
+
+      console.log('✅ Données supprimées');
+
+      setToken(null);
       setUser(null);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la déconnexion';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================
-  // UPDATE PROFILE
-  // ============================================
-
-  const updateProfile = async (updates: Partial<User>) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!user) {
-        throw new Error('Aucun utilisateur connecté');
-      }
-
-      const updatedUser = { ...user, ...updates };
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      setUser(updatedUser);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la mise à jour';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================
-  // BECOME DRIVER
-  // ============================================
-
-  const becomeDriver = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!user) {
-        throw new Error('Aucun utilisateur connecté');
-      }
-
-      const newRoles = user.roles.includes('driver')
-        ? user.roles
-        : [...user.roles, 'driver'];
-
-      await updateProfile({ roles: newRoles });
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de la conversion en conducteur';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================
-  // REGISTER VEHICLE
-  // ============================================
-
-  const registerVehicle = async (vehicle: Vehicle) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!user) {
-        throw new Error('Aucun utilisateur connecté');
-      }
-
-      if (!vehicle.brand || !vehicle.model || !vehicle.plate) {
-        throw new Error('Tous les champs sont requis');
-      }
-
-      console.log('Véhicule enregistré:', vehicle);
-
-      if (!user.roles.includes('driver')) {
-        await becomeDriver();
-      }
-
-      const vehicleData = {
-        ...vehicle,
-        id: Math.random().toString(36).substr(2, 9),
-      };
-      await AsyncStorage.setItem('vehicle', JSON.stringify(vehicleData));
-
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors de l\'enregistrement du véhicule';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============================================
-  // SWITCH ROLE
-  // ============================================
-
-  const switchRole = async (role: UserRole) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (!user) {
-        throw new Error('Aucun utilisateur connecté');
-      }
-
-      if (!user.roles.includes(role)) {
-        throw new Error(`Vous n'avez pas le rôle de ${role}`);
-      }
-
-      const updatedUser = { ...user, current_role: role };
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-      setUser(updatedUser);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Erreur lors du changement de rôle';
-      setError(errorMessage);
-      throw err;
+    } catch (err) {
+      console.error('🔴 Logout error:', err);
     } finally {
       setLoading(false);
     }
@@ -399,20 +269,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const value: UserContextType = {
     user,
+    token,
     loading,
     error,
     login,
     signup,
     logout,
-    updateProfile,
-    becomeDriver,
-    registerVehicle,
-    switchRole,
+    updateUser,  // ✅ NOUVEAU
     clearError,
-    isDriver: user?.roles?.includes('driver') ?? false,
-    isPassenger: user?.roles?.includes('passenger') ?? false,
-    isAdmin: user?.is_admin ?? false,
   };
+
+  console.log('📊 UserContext State:', {
+    hasUser: !!user,
+    hasToken: !!token,
+    loading,
+    userEmail: user?.email,
+  });
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
@@ -423,8 +295,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
 export function useUser() {
   const context = useContext(UserContext);
-  if (context === undefined) {
-    throw new Error('useUser doit être utilisé dans UserProvider');
+  if (!context) {
+    throw new Error('useUser must be used within UserProvider');
   }
   return context;
 }

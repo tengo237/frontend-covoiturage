@@ -1,74 +1,80 @@
-import React from "react";
-import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { useUser } from "../../context/UserContext";
+import React from 'react';
+import { View } from 'react-native';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function TabsLayout() {
-  const { loading } = useUser();
-
-  // ✅ Si en cours de chargement, afficher rien
-  if (loading) {
-    return null;
-  }
-
-  // ✅ Afficher le layout passager
+export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#D85A30",
-        tabBarInactiveTintColor: "#8C7A6B",
+        tabBarActiveTintColor: '#D85A30',
+        tabBarInactiveTintColor: '#8C7A6B',
         tabBarStyle: {
-          height: 60,
+          backgroundColor: '#FBF6EF',
+          borderTopColor: '#E8D5C4',
+          borderTopWidth: 1,
           paddingBottom: 8,
-          paddingTop: 6,
-          backgroundColor: "#FBF6EF",
+          paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 11 },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
+        },
       }}
     >
+      {/* Onglet Accueil */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "Accueil",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          title: 'Accueil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
+
+      {/* Onglet Publier */}
       <Tabs.Screen
-        name="search"
+        name="publier"
         options={{
-          title: "Rechercher",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" size={size} color={color} />
+          title: 'Trajets',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
           ),
         }}
       />
+
+      {/* Onglet Mes Réservations */}
+      <Tabs.Screen
+        name="mes-reservations"
+        options={{
+          title: 'Réservations',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={24} color={color} />
+          ),
+        }}
+      />
+
+      {/* Onglet Messages */}
       <Tabs.Screen
         name="messages"
         options={{
-          title: "Messages",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-outline" size={size} color={color} />
+          title: 'Messages',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'chatbubble' : 'chatbubble-outline'} size={24} color={color} />
           ),
         }}
       />
+
+      {/* Onglet Profil */}
       <Tabs.Screen
         name="profil"
         options={{
-          title: "Profil",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Paramètres",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+          title: 'Profil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />
