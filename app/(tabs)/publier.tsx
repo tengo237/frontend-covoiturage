@@ -9,23 +9,38 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '../../context/UserContext';
 
 const API_BASE_URL = 'http://12.0.3.9:8000';
 
+// ✅ CORRECTION IP
 const getImageUrl = (photoUrl: string | null | undefined): string => {
   if (!photoUrl) return 'https://via.placeholder.com/200?text=Pas+de+photo';
+  
+  if (photoUrl.includes('12.0.13.180')) {
+    return photoUrl.replace('12.0.13.180', '12.0.3.9');
+  }
+  
   if (photoUrl.startsWith('http')) return photoUrl;
   return `${API_BASE_URL}${photoUrl}`;
 };
 
-export default function Publier() {
+// ✅ FORMAT PRIX EN CFA
+const formatPrice = (price: number) => {
+  if (!price) return '0 CFA';
+  return `${Math.round(price).toLocaleString('fr-CM')} CFA`;
+};
+
+export default function Trajets() {
   const { token } = useUser();
   const [trips, setTrips] = useState<any[]>([]);
   const [filteredTrips, setFilteredTrips] = useState<any[]>([]);
+  const [userReservationIds, setUserReservationIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reserving, setReserving] = useState<number | null>(null);
@@ -33,27 +48,31 @@ export default function Publier() {
   // Filtres
   const [searchDepart, setSearchDepart] = useState('');
   const [searchArrivee, setSearchArrivee] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
-    loadTrips();
+    loadTripsAndReservations();
   }, [token]);
 
   // Filtrer en temps réel
   useEffect(() => {
     filterTrips();
-  }, [searchDepart, searchArrivee, trips]);
+  }, [searchDepart, searchArrivee, selectedDate, trips]);
 
-  const loadTrips = async () => {
+  // ✅ CHARGER TRAJETS + RÉSERVATIONS
+  const loadTripsAndReservations = async () => {
     try {
       setLoading(true);
-      console.log('🔵 Chargement de tous les trajets...');
+      console.log('🔵 Chargement trajets et réservations...');
 
       if (!token) {
         console.log('❌ Pas de token');
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/trips/available`, {
+      // Charger les trajets
+      const tripsResponse = await fetch(`${API_BASE_URL}/api/trips/available`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -61,17 +80,28 @@ export default function Publier() {
         },
       });
 
-      console.log('📩 Status:', response.status);
+      if (!tripsResponse.ok) throw new Error('Erreur chargement trajets');
+      const tripsData = await tripsResponse.json();
+      console.log('✅ Trajets:', tripsData.trips?.length || 0);
+      setTrips(tripsData.trips || []);
 
-      if (!response.ok) throw new Error('Erreur chargement');
+      // Charger les réservations
+      const reservationsResponse = await fetch(`${API_BASE_URL}/api/reservations/my-reservations`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      const data = await response.json();
-      console.log('🟢 Trajets chargés:', data.trips?.length || 0);
-
-      setTrips(data.trips || []);
-      setFilteredTrips(data.trips || []);
+      if (reservationsResponse.ok) {
+        const reservationsData = await reservationsResponse.json();
+        const tripIds = (reservationsData.reservations || []).map((r: any) => r.trip_id);
+        console.log('✅ Réservations:', reservationsData.reservations?.length || 0);
+        setUserReservationIds(tripIds);
+      }
     } catch (error) {
-      console.error('🔴 Erreur:', error);
+      console.error('❌ Erreur:', error);
       Alert.alert('Erreur', 'Impossible de charger les trajets');
     } finally {
       setLoading(false);
@@ -81,25 +111,61 @@ export default function Publier() {
   const filterTrips = () => {
     let filtered = trips;
 
-    if (searchDepart) {
+    // Filtrer par départ
+    if (searchDepart.trim()) {
       filtered = filtered.filter((trip) =>
         trip.departure_location?.toLowerCase().includes(searchDepart.toLowerCase())
       );
     }
 
-    if (searchArrivee) {
+    // Filtrer par arrivée
+    if (searchArrivee.trim()) {
       filtered = filtered.filter((trip) =>
         trip.arrival_location?.toLowerCase().includes(searchArrivee.toLowerCase())
       );
     }
 
+    // Filtrer par date
+    if (selectedDate) {
+      const filterDateStr = selectedDate.toISOString().split('T')[0];
+      filtered = filtered.filter((trip) => {
+        if (!trip.departure_time) return false;
+        const tripDateStr = trip.departure_time.split('T')[0];
+        return tripDateStr === filterDateStr;
+      });
+    }
+
+    console.log('🔍 Trajets filtrés:', filtered.length);
     setFilteredTrips(filtered);
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadTrips();
+    await loadTripsAndReservations();
     setRefreshing(false);
+  };
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // ✅ VÉRIFIER SI TRAJET EST RÉSERVÉ
+  const isReserved = (tripId: number) => {
+    return userReservationIds.includes(tripId);
   };
 
   // Réserver un trajet
@@ -136,7 +202,7 @@ export default function Publier() {
       console.log('✅ Réservation réussie!', data);
 
       Alert.alert('✅ Succès!', 'Votre réservation a été confirmée');
-      loadTrips();
+      await loadTripsAndReservations();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur';
       console.error('🔴 Erreur réservation:', message);
@@ -146,283 +212,329 @@ export default function Publier() {
     }
   };
 
-  const renderTrip = ({ item }: any) => (
-    <View
-      style={{
-        marginBottom: 16,
-        marginHorizontal: 12,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        overflow: 'hidden',
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      }}
-    >
-      {/* Image Véhicule */}
-      <View style={{ position: 'relative' }}>
-        {item.vehicle?.photo_url ? (
-          <Image
-            source={{ uri: getImageUrl(item.vehicle.photo_url) }}
-            style={{ width: '100%', height: 200, backgroundColor: '#e5e7eb' }}
-          />
-        ) : (
-          <View
-            style={{
-              width: '100%',
-              height: 200,
-              backgroundColor: '#e5e7eb',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="car-sport" size={48} color="#9ca3af" />
-            <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>
-              Photo indisponible
-            </Text>
-          </View>
-        )}
+  const renderTrip = ({ item }: any) => {
+    // ✅ VÉRIFIER SI TRAJET EST RÉSERVÉ
+    const alreadyReserved = isReserved(item.id);
 
-        {/* Badge Places */}
-        <View
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            backgroundColor: '#D85A30',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 20,
-            flexDirection: 'row',
-            alignItems: 'center',
-          }}
-        >
-          <Ionicons name="people" size={14} color="#fff" />
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>
-            {item.available_seats} places
-          </Text>
-        </View>
-
-        {/* Prix Badge */}
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 12,
-            right: 12,
-            backgroundColor: '#fff',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 12,
-            alignItems: 'center',
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: '800', color: '#D85A30' }}>
-            {item.price_per_seat}€
-          </Text>
-          <Text style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
-            /personne
-          </Text>
-        </View>
-      </View>
-
-      {/* Infos Conducteur */}
-      <View style={{ padding: 14 }}>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 12,
-            paddingBottom: 12,
-            borderBottomWidth: 1,
-            borderBottomColor: '#f0f0f0',
-          }}
-        >
-          <Image
-            source={{ uri: getImageUrl(item.driver?.photo_url) }}
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: '#f0f0f0',
-              borderWidth: 2,
-              borderColor: '#D85A30',
-            }}
-          />
-          <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#1f2937' }}>
-              {item.driver?.name || 'Conducteur'}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <Ionicons name="star" size={14} color="#FFB800" />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFB800', marginLeft: 4 }}>
-                4.8
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Timeline Trajet */}
-        <View style={{ marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row' }}>
-            <View style={{ alignItems: 'center', marginRight: 12 }}>
-              <View
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  backgroundColor: '#D85A30',
-                }}
-              />
-              <View
-                style={{
-                  width: 2,
-                  height: 40,
-                  backgroundColor: '#E8D5C4',
-                  marginVertical: 4,
-                }}
-              />
-              <View
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  backgroundColor: '#378ADD',
-                }}
-              />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <View style={{ marginBottom: 40 }}>
-                <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '500' }}>
-                  DÉPART
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color: '#1f2937',
-                    marginTop: 2,
-                  }}
-                  numberOfLines={1}
-                >
-                  {item.departure_location}
-                </Text>
-              </View>
-
-              <View>
-                <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '500' }}>
-                  ARRIVÉE
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color: '#1f2937',
-                    marginTop: 2,
-                  }}
-                  numberOfLines={1}
-                >
-                  {item.arrival_location}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Infos Rapides */}
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-          }}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: '#F0F9FF',
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 10,
-              marginRight: 6,
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="calendar" size={16} color="#378ADD" />
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#378ADD', marginTop: 4 }}>
-              {item.departure_time?.split(' ')[0] || 'N/A'}
-            </Text>
-          </View>
-
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: '#FFF5E6',
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 10,
-              marginRight: 6,
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="time" size={16} color="#F59E0B" />
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#F59E0B', marginTop: 4 }}>
-              {item.departure_time?.split(' ')[1] || 'N/A'}
-            </Text>
-          </View>
-
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: '#F0FDF4',
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 10,
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#10b981', marginTop: 4 }}>
-              Actif
-            </Text>
-          </View>
-        </View>
-
-        {/* Bouton Réserver - FONCTIONNEL */}
-        <TouchableOpacity
-          onPress={() => handleReserver(item.id)}
-          disabled={reserving === item.id}
-          style={{
-            backgroundColor: reserving === item.id ? '#B8481F' : '#D85A30',
-            paddingVertical: 14,
-            alignItems: 'center',
-            flexDirection: 'row',
-            justifyContent: 'center',
-            borderRadius: 12,
-            opacity: reserving === item.id ? 0.7 : 1,
-          }}
-        >
-          {reserving === item.id ? (
-            <>
-              <ActivityIndicator size="small" color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
-                Réservation...
-              </Text>
-            </>
+    return (
+      <View
+        style={{
+          marginBottom: 16,
+          marginHorizontal: 12,
+          backgroundColor: '#fff',
+          borderRadius: 16,
+          overflow: 'hidden',
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          opacity: alreadyReserved ? 0.7 : 1,
+        }}
+      >
+        {/* Image Véhicule */}
+        <View style={{ position: 'relative' }}>
+          {item.vehicle?.photo_url ? (
+            <Image
+              source={{ uri: getImageUrl(item.vehicle.photo_url) }}
+              style={{ width: '100%', height: 200, backgroundColor: '#e5e7eb' }}
+            />
           ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
-                Réserver ce trajet
+            <View
+              style={{
+                width: '100%',
+                height: 200,
+                backgroundColor: '#e5e7eb',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="car-sport" size={48} color="#9ca3af" />
+              <Text style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>
+                Photo indisponible
               </Text>
-            </>
+            </View>
           )}
-        </TouchableOpacity>
+
+          {/* Badge Places */}
+          <View
+            style={{
+              position: 'absolute',
+              top: 12,
+              right: 12,
+              backgroundColor: '#D85A30',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 20,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="people" size={14} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>
+              {item.available_seats} places
+            </Text>
+          </View>
+
+          {/* Prix Badge - ✅ EN CFA */}
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 12,
+              right: 12,
+              backgroundColor: '#fff',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 12,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '800', color: '#D85A30' }}>
+              {formatPrice(item.price_per_seat)}
+            </Text>
+            <Text style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
+              /personne
+            </Text>
+          </View>
+
+          {/* ✅ BADGE "DÉJÀ RÉSERVÉ" */}
+          {alreadyReserved && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>
+                Déjà réservé
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Infos Conducteur */}
+        <View style={{ padding: 14 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: 12,
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: '#f0f0f0',
+            }}
+          >
+            <Image
+              source={{ uri: getImageUrl(item.driver?.photo_url) }}
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: '#f0f0f0',
+                borderWidth: 2,
+                borderColor: '#D85A30',
+              }}
+            />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1f2937' }}>
+                {item.driver?.name || 'Conducteur'}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons name="star" size={14} color="#FFB800" />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#FFB800', marginLeft: 4 }}>
+                  4.8
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Timeline Trajet */}
+          <View style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ alignItems: 'center', marginRight: 12 }}>
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: '#D85A30',
+                  }}
+                />
+                <View
+                  style={{
+                    width: 2,
+                    height: 40,
+                    backgroundColor: '#E8D5C4',
+                    marginVertical: 4,
+                  }}
+                />
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: '#378ADD',
+                  }}
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <View style={{ marginBottom: 40 }}>
+                  <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '500' }}>
+                    DÉPART
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '700',
+                      color: '#1f2937',
+                      marginTop: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {item.departure_location}
+                  </Text>
+                </View>
+
+                <View>
+                  <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: '500' }}>
+                    ARRIVÉE
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '700',
+                      color: '#1f2937',
+                      marginTop: 2,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {item.arrival_location}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Infos Rapides */}
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginBottom: 12,
+            }}
+          >
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: '#F0F9FF',
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                borderRadius: 10,
+                marginRight: 6,
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="calendar" size={16} color="#378ADD" />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#378ADD', marginTop: 4 }}>
+                {item.departure_time?.split(' ')[0] || 'N/A'}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: '#FFF5E6',
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                borderRadius: 10,
+                marginRight: 6,
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="time" size={16} color="#F59E0B" />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#F59E0B', marginTop: 4 }}>
+                {item.departure_time?.split(' ')[1] || 'N/A'}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: '#F0FDF4',
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                borderRadius: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#10b981', marginTop: 4 }}>
+                Actif
+              </Text>
+            </View>
+          </View>
+
+          {/* ✅ BOUTON - CONDITIONNEL */}
+          {alreadyReserved ? (
+            <View
+              style={{
+                backgroundColor: '#d1d5db',
+                paddingVertical: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                borderRadius: 12,
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#6b7280" />
+              <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
+                ✅ Vous avez réservé
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => handleReserver(item.id)}
+              disabled={reserving === item.id}
+              style={{
+                backgroundColor: reserving === item.id ? '#B8481F' : '#D85A30',
+                paddingVertical: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                borderRadius: 12,
+                opacity: reserving === item.id ? 0.7 : 1,
+              }}
+            >
+              {reserving === item.id ? (
+                <>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
+                    Réservation...
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
+                    Réserver ce trajet
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading && trips.length === 0) {
     return (
@@ -511,12 +623,41 @@ export default function Publier() {
               placeholderTextColor="#9ca3af"
             />
 
+            {/* Champ Date - ✅ NOUVEAU */}
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(true)}
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                marginBottom: 10,
+                borderWidth: 1,
+                borderColor: '#E8D5C4',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: selectedDate ? '#1f2937' : '#9ca3af',
+                  fontWeight: '500',
+                }}
+              >
+                {selectedDate ? formatDate(selectedDate) : 'Choisir une date...'}
+              </Text>
+              <Ionicons name="calendar" size={20} color="#D85A30" />
+            </TouchableOpacity>
+
             {/* Bouton Réinitialiser */}
-            {(searchDepart || searchArrivee) && (
+            {(searchDepart || searchArrivee || selectedDate) && (
               <TouchableOpacity
                 onPress={() => {
                   setSearchDepart('');
                   setSearchArrivee('');
+                  setSelectedDate(null);
                 }}
                 style={{
                   backgroundColor: '#f0f0f0',
@@ -545,6 +686,16 @@ export default function Publier() {
           </View>
         }
       />
+
+      {/* DatePicker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleDateChange}
+        />
+      )}
     </SafeAreaView>
   );
 }

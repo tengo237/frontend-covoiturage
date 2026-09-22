@@ -16,8 +16,15 @@ import { useUser } from '../../context/UserContext';
 
 const API_BASE_URL = 'http://12.0.3.9:8000';
 
+// ✅ CORRECTION IP: Ajouter le .replace() pour l'ancienne IP
 const getImageUrl = (url: string | null) => {
   if (!url) return 'https://via.placeholder.com/100?text=User';
+  
+  // ✅ CORRECTION IP: 12.0.13.180 → 12.0.3.9
+  if (url.includes('12.0.13.180')) {
+    return url.replace('12.0.13.180', '12.0.3.9');
+  }
+  
   if (url.startsWith('http')) return url;
   return `${API_BASE_URL}${url}`;
 };

@@ -388,33 +388,7 @@ export default function Profil() {
           </TouchableOpacity>
         </View>
 
-        {/* ========== DEBUG INFO ========== */}
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            backgroundColor: '#f3f4f6',
-            marginHorizontal: 16,
-            borderRadius: 8,
-            marginBottom: 24,
-          }}
-        >
-          <Text style={{ fontSize: 11, color: '#6b7280', fontWeight: '600', marginBottom: 8 }}>
-            🐛 INFO DÉVELOPPEUR
-          </Text>
-          <Text style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-            ID: {user.id}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-            Email: {user.email}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-            Roles: {user.roles}
-          </Text>
-          <Text style={{ fontSize: 11, color: '#6b7280' }}>
-            Admin: {user.is_admin ? 'Oui' : 'Non'}
-          </Text>
-        </View>
+       
       </ScrollView>
     </SafeAreaView>
   );
