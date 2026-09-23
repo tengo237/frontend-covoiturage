@@ -1,13 +1,15 @@
 import React from "react";
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useUser } from "../../context/UserContext";
 
+const API_BASE_URL = "http://12.0.3.9:8000";
+
 export default function DriverProfil() {
-  // ✅ CORRIGÉ: Utiliser 'user' au lieu de 'profile'
-  const { user, logout } = useUser();
+  // ✅ Charger user ET vehicle depuis le context
+  const { user, vehicle, logout } = useUser();
 
   const handleLogout = async () => {
     Alert.alert("Déconnexion", "Êtes-vous sûr?", [
@@ -25,108 +27,276 @@ export default function DriverProfil() {
 
   if (!user) {
     return (
-      <SafeAreaView className="flex-1 bg-creme items-center justify-center">
-        <Text className="font-body text-brun-muted">Chargement...</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF6EF", alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: "body", fontSize: 14, color: "#9CA3AF" }}>Chargement...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-creme">
-      <ScrollView className="px-6 pt-4" showsVerticalScrollIndicator={false}>
-        {/* PROFILE HEADER */}
-        <View className="items-center mb-8">
-          <View className="w-20 h-20 rounded-full bg-teal-50 items-center justify-center mb-3">
-            <Ionicons name="person" size={36} color="#0F6E56" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF6EF" }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }} showsVerticalScrollIndicator={false}>
+        
+        {/* ===== PROFILE HEADER ===== */}
+        <View style={{ alignItems: "center", marginBottom: 32 }}>
+          {/* Avatar */}
+          <View style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: "#DCFCE7",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 12,
+          }}>
+            <Ionicons name="person" size={44} color="#0F6E56" />
           </View>
-          {/* ✅ CORRIGÉ: Utiliser user.name et user.email */}
-          <Text className="font-display-bold text-brun text-lg">{user.name}</Text>
-          <Text className="font-body text-brun-muted text-sm">{user.email}</Text>
-          
-          <View className="flex-row items-center mt-4 px-3 py-1 rounded-full bg-teal-100 border border-teal-300">
+
+          {/* Name & Email */}
+          <Text style={{ fontWeight: "800", fontSize: 18, color: "#1F2937", marginBottom: 4 }}>
+            {user.name}
+          </Text>
+          <Text style={{ fontWeight: "400", fontSize: 14, color: "#9CA3AF", marginBottom: 12 }}>
+            {user.email}
+          </Text>
+
+          {/* Badge */}
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 20,
+            backgroundColor: "#DCFCE7",
+            borderWidth: 1,
+            borderColor: "#6EE7B7",
+          }}>
             <Ionicons name="car-sport" size={14} color="#0F6E56" />
-            <Text className="font-body-medium text-xs text-teal-700 ml-1.5">
+            <Text style={{ fontWeight: "500", fontSize: 12, color: "#0F6E56", marginLeft: 6 }}>
               Conducteur vérifié
             </Text>
           </View>
         </View>
 
-        {/* VEHICLE SECTION */}
-        <View className="mb-6">
-          <Text className="font-body-semibold text-xs text-teal-600 mb-2 uppercase">
+        {/* ===== VEHICLE SECTION ===== */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ fontWeight: "600", fontSize: 12, color: "#0F6E56", marginBottom: 8, textTransform: "uppercase" }}>
             Véhicule
           </Text>
-          <Pressable
-            onPress={() => router.push("/add-vehicle")}
-            className="bg-white border border-brun/10 rounded-2xl p-4 flex-row items-center justify-between active:opacity-70"
-          >
+
+          {vehicle ? (
+            // ✅ VÉHICULE EXISTE: Afficher les détails + PHOTO
             <View>
-              <Text className="font-body-semibold text-sm text-brun mb-0.5">
-                Votre véhicule
-              </Text>
-              <Text className="font-body text-sm text-brun-muted">
-                Gérer vos véhicules
-              </Text>
+              {/* Carte véhicule */}
+              <Pressable
+                onPress={() => router.push("/edit-vehicle")}
+                style={{
+                  backgroundColor: "#FFF",
+                  borderWidth: 1,
+                  borderColor: "#E8D5C4",
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  marginBottom: 12,
+                  active: { opacity: 0.7 },
+                }}
+              >
+                {/* ✅ PHOTO DU VÉHICULE */}
+                {vehicle.vehicle_photo_url ? (
+                  <Image
+                    source={{
+                      uri: `${API_BASE_URL}${vehicle.vehicle_photo_url}`,
+                    }}
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      backgroundColor: "#F3F4F6",
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      backgroundColor: "#F3F4F6",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Ionicons name="car-outline" size={48} color="#D1D5DB" />
+                  </View>
+                )}
+
+                {/* Détails du véhicule */}
+                <View style={{ padding: 16 }}>
+                  {/* Marque + Modèle */}
+                  <Text style={{ fontWeight: "600", fontSize: 16, color: "#1F2937", marginBottom: 4 }}>
+                    {vehicle.brand} {vehicle.model}
+                  </Text>
+
+                  {/* Plaque + Couleur */}
+                  <Text style={{ fontWeight: "400", fontSize: 13, color: "#9CA3AF", marginBottom: 8 }}>
+                    {vehicle.plate} • {vehicle.color}
+                  </Text>
+
+                  {/* Status + Modifier */}
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#10B981", marginRight: 6 }} />
+                      <Text style={{ fontWeight: "500", fontSize: 12, color: "#10B981" }}>
+                        Enregistré
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Text style={{ fontWeight: "500", fontSize: 12, color: "#0F6E56", marginRight: 6 }}>
+                        Modifier
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color="#0F6E56" />
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* Bouton Ajouter un autre véhicule */}
+              <Pressable
+                onPress={() => router.push("/add-vehicle")}
+                style={{
+                  backgroundColor: "#FFF",
+                  borderWidth: 1,
+                  borderColor: "#E8D5C4",
+                  borderRadius: 16,
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  active: { opacity: 0.7 },
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#D85A30" />
+                <Text style={{ fontWeight: "600", fontSize: 14, color: "#D85A30", marginLeft: 8 }}>
+                  Ajouter un autre véhicule
+                </Text>
+              </Pressable>
             </View>
-            <View className="flex-row items-center">
-              <Text className="font-body-medium text-xs text-teal-600 mr-1">Voir</Text>
-              <Ionicons name="chevron-forward" size={16} color="#0F6E56" />
-            </View>
-          </Pressable>
+          ) : (
+            // ❌ PAS DE VÉHICULE: Bouton pour en ajouter
+            <Pressable
+              onPress={() => router.push("/add-vehicle")}
+              style={{
+                backgroundColor: "#FFF",
+                borderWidth: 1,
+                borderColor: "#E8D5C4",
+                borderRadius: 16,
+                paddingVertical: 16,
+                paddingHorizontal: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                active: { opacity: 0.7 },
+              }}
+            >
+              <View>
+                <Text style={{ fontWeight: "600", fontSize: 14, color: "#1F2937", marginBottom: 4 }}>
+                  Votre véhicule
+                </Text>
+                <Text style={{ fontWeight: "400", fontSize: 13, color: "#9CA3AF" }}>
+                  Ajouter votre premier véhicule
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Text style={{ fontWeight: "500", fontSize: 12, color: "#0F6E56", marginRight: 8 }}>
+                  Ajouter
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#0F6E56" />
+              </View>
+            </Pressable>
+          )}
         </View>
 
-        {/* MENU ITEMS */}
-        <View className="border-t border-brun/10">
-          {/* Edit Profile */}
+        {/* ===== MENU ITEMS ===== */}
+        <View style={{ borderTopWidth: 1, borderTopColor: "#E8D5C4" }}>
+          
+          {/* Modifier profil */}
           <Pressable
             onPress={() => router.push("/edit-profile")}
-            className="flex-row items-center justify-between py-4 border-b border-brun/10 active:opacity-70"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: "#E8D5C4",
+              active: { opacity: 0.7 },
+            }}
           >
-            <View className="flex-row items-center">
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="person-outline" size={20} color="#3D2B1F" />
-              <Text className="font-body text-sm text-brun ml-3">
+              <Text style={{ fontWeight: "400", fontSize: 14, color: "#1F2937", marginLeft: 12 }}>
                 Modifier mes informations
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#8C7A6B" />
           </Pressable>
 
-          {/* Switch to Passenger */}
+          {/* Voir en tant que passager */}
           <Pressable
             onPress={() => router.replace("/(tabs)")}
-            className="flex-row items-center justify-between py-4 border-b border-brun/10 active:opacity-70"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: "#E8D5C4",
+              active: { opacity: 0.7 },
+            }}
           >
-            <View className="flex-row items-center">
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="swap-horizontal-outline" size={20} color="#3D2B1F" />
-              <Text className="font-body text-sm text-brun ml-3">
+              <Text style={{ fontWeight: "400", fontSize: 14, color: "#1F2937", marginLeft: 12 }}>
                 Voir en tant que passager
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#8C7A6B" />
           </Pressable>
 
-          {/* Settings */}
+          {/* Paramètres */}
           <Pressable
             onPress={() => {}}
-            className="flex-row items-center justify-between py-4 border-b border-brun/10 active:opacity-70"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: "#E8D5C4",
+              active: { opacity: 0.7 },
+            }}
           >
-            <View className="flex-row items-center">
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="settings-outline" size={20} color="#3D2B1F" />
-              <Text className="font-body text-sm text-brun ml-3">
+              <Text style={{ fontWeight: "400", fontSize: 14, color: "#1F2937", marginLeft: 12 }}>
                 Paramètres
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#8C7A6B" />
           </Pressable>
 
-          {/* Help */}
+          {/* Aide */}
           <Pressable
             onPress={() => {}}
-            className="flex-row items-center justify-between py-4 active:opacity-70"
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 16,
+              active: { opacity: 0.7 },
+            }}
           >
-            <View className="flex-row items-center">
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="help-circle-outline" size={20} color="#3D2B1F" />
-              <Text className="font-body text-sm text-brun ml-3">
+              <Text style={{ fontWeight: "400", fontSize: 14, color: "#1F2937", marginLeft: 12 }}>
                 Aide & Support
               </Text>
             </View>
@@ -134,27 +304,27 @@ export default function DriverProfil() {
           </Pressable>
         </View>
 
-        {/* LOGOUT BUTTON */}
+        {/* ===== LOGOUT BUTTON ===== */}
         <Pressable
           onPress={handleLogout}
-          className="mt-8 mb-10 py-3 px-4 bg-red-100 border border-red-300 rounded-xl items-center"
+          style={{
+            marginTop: 32,
+            marginBottom: 32,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            backgroundColor: "#FEE2E4",
+            borderWidth: 1,
+            borderColor: "#FCA5AC",
+            borderRadius: 12,
+            alignItems: "center",
+            active: { opacity: 0.7 },
+          }}
         >
-          <Text className="font-body-semibold text-sm text-red-700">
+          <Text style={{ fontWeight: "600", fontSize: 14, color: "#DC2626" }}>
             Se déconnecter
           </Text>
         </Pressable>
 
-        {/* DEBUG INFO */}
-        {process.env.NODE_ENV === "development" && (
-          <View className="mb-8 p-3 bg-gray-100 rounded-lg">
-            <Text className="font-body text-xs text-gray-600 mb-1">🐛 DEBUG:</Text>
-            <Text className="font-body text-xs text-gray-600">ID: {user.id}</Text>
-            <Text className="font-body text-xs text-gray-600">Name: {user.name}</Text>
-            <Text className="font-body text-xs text-gray-600">
-              is_driver: {user.is_driver ? "true" : "false"}
-            </Text>
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );

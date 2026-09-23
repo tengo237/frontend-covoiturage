@@ -5,14 +5,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../../context/UserContext";
 
 export default function DriverLayout() {
-  const { isDriver, loading } = useUser();
+  const { user, loading } = useUser();
+
+  // ✅ Vérifier si l'utilisateur a le rôle "driver"
+  const isDriver = user && user.roles && user.roles.includes('driver');
 
   // ✅ Si en cours de chargement, afficher rien
   if (loading) {
     return null;
   }
 
-  // ✅ Si pas driver, afficher une vue vide (pas de redirection)
+  // ✅ Si pas driver, afficher une vue vide
   if (!isDriver) {
     return <View style={{ flex: 1 }} />;
   }
@@ -57,6 +60,15 @@ export default function DriverLayout() {
           title: "Réservations",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="checkmark-done-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
         }}
       />

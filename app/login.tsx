@@ -11,7 +11,7 @@ type Mode = "login" | "signup";
 export default function Login() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
-  const { user, login, signup, error, clearError, switchRole } = useUser();
+  const { user, login, signup, error, clearError } = useUser();
 
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
@@ -45,54 +45,82 @@ export default function Login() {
         setPassword("");
       } else {
         // ✅ LOGIN
+        console.log("🔵 LOGIN - Avant login()");
         await login({ email: email.trim(), password });
+        console.log("🔵 LOGIN - Après login()");
 
         // ✅ ATTENDRE LA MISE À JOUR DU STATE
         setTimeout(() => {
+          console.log("🔵 DEBUG - user object:", user);
+          console.log("🔵 DEBUG - user?.roles:", user?.roles);
+          console.log("🔵 DEBUG - typeof user?.roles:", typeof user?.roles);
+          
           if (user) {
+            console.log("✅ user existe");
+            
+            // ✅ CONVERTIR LES RÔLES EN ARRAY (backend envoie "passenger,driver")
+            const rolesArray = user.roles 
+              ? user.roles.split(',').map((r: string) => r.trim()) 
+              : [];
+            
+            console.log("🔵 DEBUG - rolesArray:", rolesArray);
+            console.log("🔵 DEBUG - rolesArray.length:", rolesArray.length);
+            
             // ✅ SI L'UTILISATEUR A EXACTEMENT 2 RÔLES
-            // (= passager qui a ajouté un véhicule et est devenu conducteur)
-            if (user.roles.length === 2) {
+            if (rolesArray.length === 2) {
+              console.log("✅ CONDITION OK - Affichage du message de choix");
               Alert.alert(
                 "Choisissez votre rôle",
                 "Vous pouvez être passager et conducteur. Par quel souhaitez-vous commencer?",
                 [
                   {
                     text: "Passager",
-                    onPress: async () => {
-                      await switchRole("passenger");
+                    onPress: () => {
+                      console.log("✅ Rôle sélectionné: Passager");
+                      console.log("🔵 Avant router.replace/(tabs)");
                       router.replace("/(tabs)");
+                      console.log("🔵 Après router.replace/(tabs)");
                     },
                   },
                   {
                     text: "Conducteur",
-                    onPress: async () => {
-                      await switchRole("driver");
+                    onPress: () => {
+                      console.log("✅ Rôle sélectionné: Conducteur");
+                      console.log("🔵 Avant router.replace/(driver)");
                       router.replace("/(driver)");
+                      console.log("🔵 Après router.replace/(driver)");
                     },
                   },
                 ]
               );
             } 
             // ✅ SI SEULEMENT CONDUCTEUR
-            else if (user.roles.length === 1 && user.roles.includes("driver")) {
+            else if (rolesArray.length === 1 && rolesArray.includes("driver")) {
+              console.log("✅ CONDITION OK - Conducteur seulement");
+              console.log("🔵 Avant router.replace/(driver) - SEUL");
               router.replace("/(driver)");
+              console.log("🔵 Après router.replace/(driver) - SEUL");
             } 
             // ✅ SI SEULEMENT PASSAGER (défaut)
             else {
+              console.log("✅ CONDITION OK - Passager seulement");
+              console.log("🔵 Avant router.replace/(tabs) - SEUL");
               router.replace("/(tabs)");
+              console.log("🔵 Après router.replace/(tabs) - SEUL");
             }
+          } else {
+            console.log("❌ ERROR - user est NULL!");
           }
         }, 300);
       }
     } catch (err: any) {
+      console.log("❌ ERROR handleSubmit:", err);
       Alert.alert("Erreur", err.message ?? "Une erreur est survenue.");
     } finally {
       setLoading(false);
     }
   };
-
-  return (
+ return (
     <SafeAreaView className="flex-1 bg-creme">
       <View className="flex-1 items-center justify-center px-6">
         <View className={`w-full ${isTablet ? "max-w-md" : ""}`}>
