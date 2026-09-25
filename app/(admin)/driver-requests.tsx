@@ -3,9 +3,9 @@ import { View, Text, FlatList, Pressable, ActivityIndicator, Alert, Image } from
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useAdminDriverRequests } from "../../../hooks/useAdminDriverRequests";
+import { useAdminDriverRequests } from "../../hooks/useAdminDriverRequests";
 
-export default function DriverApplicationsPage() {
+export default function DriverRequestsPage() {
   const { requests, loading, error, approveDriver, rejectDriver } = useAdminDriverRequests();
   const [updating, setUpdating] = useState<number | null>(null);
 
@@ -65,22 +65,19 @@ export default function DriverApplicationsPage() {
         <Pressable onPress={() => router.back()} hitSlop={10} className="mr-3">
           <Ionicons name="arrow-back" size={22} color="#3D2B1F" />
         </Pressable>
-        <Text className="font-display-bold text-brun text-xl">Dossiers conducteur</Text>
+        <Text className="font-display-bold text-brun text-xl">Demandes conducteur</Text>
       </View>
 
       {loading && (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#D85A30" />
-          <Text className="font-body text-brun-muted text-sm mt-3">
-            Chargement des demandes...
-          </Text>
         </View>
       )}
 
       {error && (
-        <View className="mx-6 mt-4 bg-danger-50 border border-danger-200 rounded-2xl p-4">
+        <View className="mx-6 mt-4 bg-danger-50 border border-danger-200 rounded-2xl p-3">
           <View className="flex-row items-center gap-2">
-            <Ionicons name="alert-circle" size={18} color="#D8453C" />
+            <Ionicons name="alert-circle" size={16} color="#D8453C" />
             <Text className="font-body text-danger-600 text-xs flex-1">{error}</Text>
           </View>
         </View>
@@ -89,28 +86,27 @@ export default function DriverApplicationsPage() {
       <FlatList
         data={requests}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 24 }}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         renderItem={({ item }) => (
           <View className="bg-white border border-brun/10 rounded-2xl p-4">
-            {/* HEADER AVEC PHOTO */}
             <View className="flex-row items-start gap-3 mb-3">
               {item.photo_url ? (
                 <Image
                   source={{ uri: item.photo_url }}
-                  className="w-14 h-14 rounded-full bg-teal-50"
+                  className="w-12 h-12 rounded-full bg-teal-50"
                 />
               ) : (
-                <View className="w-14 h-14 rounded-full bg-teal-50 items-center justify-center">
-                  <Ionicons name="person" size={24} color="#0F6E56" />
+                <View className="w-12 h-12 rounded-full bg-teal-50 items-center justify-center">
+                  <Ionicons name="person" size={20} color="#0F6E56" />
                 </View>
               )}
 
               <View className="flex-1">
-                <Text className="font-display-semibold text-sm text-brun">
+                <Text className="font-body-semibold text-sm text-brun">
                   {item.name}
                 </Text>
-                <Text className="font-body text-xs text-brun-muted mt-1">
+                <Text className="font-body text-xs text-brun-muted">
                   {item.email}
                 </Text>
                 {item.phone && (
@@ -119,17 +115,11 @@ export default function DriverApplicationsPage() {
                   </Text>
                 )}
               </View>
-
-              <Ionicons name="car-outline" size={24} color="#D85A30" />
             </View>
 
-            {/* INFO DATE */}
-            <View className="bg-brun/5 rounded-lg p-3 mb-4">
+            <View className="bg-brun/5 rounded-lg p-2 mb-3">
               <Text className="font-body text-xs text-brun-muted">
-                📅 Demande soumise le {new Date(item.created_at).toLocaleDateString('fr-FR')}
-              </Text>
-              <Text className="font-body text-xs text-brun-muted mt-1">
-                Rôle actuel: {item.current_role || 'Non défini'}
+                Demande soumise le {new Date(item.created_at).toLocaleDateString('fr-FR')}
               </Text>
             </View>
 
@@ -138,49 +128,35 @@ export default function DriverApplicationsPage() {
               <Pressable
                 onPress={() => handleReject(item.id, item.name)}
                 disabled={updating === item.id}
-                className="flex-1 border-2 border-danger-400 rounded-lg py-3 items-center active:opacity-70"
+                className="flex-1 border border-danger-400 rounded-lg py-2 items-center active:opacity-70"
                 style={{ opacity: updating === item.id ? 0.5 : 1 }}
               >
                 {updating === item.id ? (
                   <ActivityIndicator size="small" color="#D8453C" />
                 ) : (
-                  <View className="flex-row items-center gap-1">
-                    <Ionicons name="close-outline" size={16} color="#D8453C" />
-                    <Text className="font-body-semibold text-xs text-danger-600">Refuser</Text>
-                  </View>
+                  <Text className="font-body-semibold text-xs text-danger-600">Refuser</Text>
                 )}
               </Pressable>
 
               <Pressable
                 onPress={() => handleApprove(item.id, item.name)}
                 disabled={updating === item.id}
-                className="flex-1 bg-success-600 rounded-lg py-3 items-center active:opacity-70"
+                className="flex-1 bg-success-600 rounded-lg py-2 items-center active:opacity-70"
                 style={{ opacity: updating === item.id ? 0.5 : 1 }}
               >
                 {updating === item.id ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <View className="flex-row items-center gap-1">
-                    <Ionicons name="checkmark-outline" size={16} color="#fff" />
-                    <Text className="font-body-semibold text-xs text-white">Approuver</Text>
-                  </View>
+                  <Text className="font-body-semibold text-xs text-white">Approuver</Text>
                 )}
               </Pressable>
             </View>
           </View>
         )}
         ListEmptyComponent={
-          !loading && (
-            <View className="flex-1 items-center justify-center py-16">
-              <Ionicons name="checkmark-done-outline" size={48} color="#0F6E56" />
-              <Text className="font-body-semibold text-sm text-brun mt-4">
-                Aucune demande en attente
-              </Text>
-              <Text className="font-body text-xs text-brun-muted mt-2">
-                Tous les conducteurs sont traités ✅
-              </Text>
-            </View>
-          )
+          <Text className="font-body text-sm text-brun-muted text-center mt-10">
+            Aucune demande en attente.
+          </Text>
         }
       />
     </SafeAreaView>

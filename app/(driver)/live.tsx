@@ -1,162 +1,376 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, Animated, Easing, Vibration, useWindowDimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import AnimatedPressable from "../../components/AnimatedPressable";
-import { MY_PUBLISHED_TRIPS } from "../../lib/driverTrips";
+// app/(driver)/live.tsx - Avec capture de frames
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+} from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useSleepDetection } from '../../hooks/useSleepDetection';
 
-// Motif de vibration façon alarme : vibre 500ms, pause 200ms, en boucle.
-const ALARM_PATTERN = [0, 500, 200];
+export default function LiveScreen() {
+  console.log('[📺 LIVE] Component mounted');
 
-type MonitorState = "off" | "watching" | "alarm";
+  const cameraRef = useRef<CameraView>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isRecording, setIsRecording] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState('idle');
+  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-export default function Live() {
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 600;
+  const { state, stopAlarm, startMonitoring, stopMonitoring, isMonitoring, analyzeFace } =
+    useSleepDetection();
 
-  // Trajet "en cours" pour la démo — à remplacer par le trajet réellement
-  // actif une fois le backend branché (statut "en cours" côté serveur).
-  const currentTrip = MY_PUBLISHED_TRIPS[0];
-
-  const [state, setState] = useState<MonitorState>("off");
-  const flash = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
-
+  // Demander permission
   useEffect(() => {
-    if (state !== "watching") return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 1200, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [state]);
-
-  useEffect(() => {
-    if (state !== "alarm") return;
-    Vibration.vibrate(ALARM_PATTERN, true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(flash, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(flash, { toValue: 0, duration: 350, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => {
-      loop.stop();
-      Vibration.cancel();
+    const checkPermission = async () => {
+      if (!permission) {
+        const result = await requestPermission();
+        console.log('[LIVE] Camera permission:', result?.granted);
+      }
     };
-  }, [state]);
+    checkPermission();
+  }, [permission, requestPermission]);
 
-  const startMonitoring = () => setState("watching");
-  const stopMonitoring = () => setState("off");
-  const simulateEyesClosed = () => setState("alarm");
-  const dismissAlarm = () => {
-    Vibration.cancel();
-    setState("watching");
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      console.log('[LIVE] Unmounting');
+      if (isRecording) {
+        stopMonitoring();
+      }
+      if (captureIntervalRef.current) {
+        clearInterval(captureIntervalRef.current);
+      }
+    };
+  }, [isRecording, stopMonitoring]);
+
+  // Capturer et analyser les frames
+  const startFrameCapture = async () => {
+    console.log('[LIVE] Starting frame capture...');
+
+    if (!cameraRef.current) {
+      console.error('[LIVE] Camera ref not available');
+      return;
+    }
+
+    captureIntervalRef.current = setInterval(async () => {
+      if (isRecording && cameraRef.current) {
+        try {
+          console.log('[LIVE] Capturing frame...');
+          const photo = await cameraRef.current.takePictureAsync({
+            quality: 0.7,
+            base64: false,
+          });
+
+          if (photo) {
+            console.log('[LIVE] Frame captured:', photo.uri);
+            setAnalysisStatus('analyzing');
+            await analyzeFace(photo.uri);
+            setAnalysisStatus('done');
+          }
+        } catch (error) {
+          console.error('[LIVE] Frame capture error:', error);
+          setAnalysisStatus('error');
+        }
+      }
+    }, 1000); // Capturer chaque seconde
   };
 
+  // Toggle recording
+  const toggleRecording = async () => {
+    console.log('[LIVE] toggleRecording - isRecording:', isRecording);
+
+    try {
+      if (isRecording) {
+        console.log('[LIVE] Stopping...');
+        setIsRecording(false);
+
+        if (captureIntervalRef.current) {
+          clearInterval(captureIntervalRef.current);
+          captureIntervalRef.current = null;
+        }
+
+        stopMonitoring();
+        setAnalysisStatus('idle');
+      } else {
+        console.log('[LIVE] Starting...');
+        setIsRecording(true);
+        setAnalysisStatus('idle');
+
+        await startMonitoring();
+        await startFrameCapture();
+      }
+    } catch (error) {
+      console.error('[LIVE] Error:', error);
+      Alert.alert('Erreur', 'Impossible de démarrer');
+    }
+  };
+
+  if (!permission) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color="#D85A30" />
+          <Text style={styles.loadingText}>Demande de permission...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <Ionicons name="close-circle" size={56} color="#EF4444" />
+          <Text style={styles.errorTitle}>Permission refusée</Text>
+          <Text style={styles.errorText}>Accès à la caméra refusé</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1" style={{ backgroundColor: state === "off" ? "#FBF6EF" : "#1B1035" }}>
-      {state === "alarm" && (
-        <Animated.View
-          pointerEvents="none"
-          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#D8453C", opacity: flash, zIndex: 10 }}
-        />
-      )}
+    <SafeAreaView style={styles.container}>
+      <CameraView ref={cameraRef} style={styles.camera} facing="front" ratio="16:9" />
 
-      <View className="flex-1 px-6 pt-4">
-        <Text className={`font-display-bold text-2xl mb-1 ${state === "off" ? "text-brun" : "text-creme"}`}>
-          Live
-        </Text>
-        <Text className={`font-body text-sm mb-6 ${state === "off" ? "text-brun-muted" : "text-white/60"}`}>
-          {currentTrip ? `${currentTrip.from} → ${currentTrip.to}` : "Aucun trajet en cours"}
-        </Text>
+      <View style={styles.overlay}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>🚗 Monitoring Conducteur</Text>
+          <Ionicons
+            name={isRecording ? 'videocam' : 'videocam-off'}
+            size={24}
+            color={isRecording ? '#EF4444' : '#9ca3af'}
+          />
+        </View>
 
-        <View className="flex-1 items-center justify-center">
-          <View className={`items-center ${isTablet ? "max-w-md" : ""}`}>
-            {state === "off" && (
-              <>
-                <View className="w-24 h-24 rounded-full bg-teal-50 items-center justify-center mb-6">
-                  <Ionicons name="videocam-outline" size={44} color="#0F6E56" />
-                </View>
-                <Text className="font-display-bold text-brun text-xl text-center mb-2">
-                  Enregistrement vidéo du trajet
-                </Text>
-                <Text className="font-body text-brun-muted text-sm text-center leading-6 mb-8 px-4">
-                  Filme le conducteur pendant tout le trajet et détecte les
-                  signes de somnolence (yeux fermés prolongés) pour
-                  déclencher une alarme automatiquement.
-                </Text>
-                <AnimatedPressable onPress={startMonitoring} className="bg-terre-600 rounded-2xl py-4 px-10">
-                  <Text className="font-body-semibold text-creme text-base">
-                    Démarrer l'enregistrement
-                  </Text>
-                </AnimatedPressable>
-              </>
-            )}
-
-            {state === "watching" && (
-              <>
-                <Animated.View
-                  style={{ transform: [{ scale: pulse }] }}
-                  className="w-28 h-28 rounded-full border-2 border-success-400 items-center justify-center mb-6"
-                >
-                  <Ionicons name="videocam" size={40} color="#3FC994" />
-                </Animated.View>
-                <View className="flex-row items-center bg-danger-50 px-3 py-1.5 rounded-full mb-2">
-                  <View className="w-2 h-2 rounded-full bg-danger-600 mr-2" />
-                  <Text className="font-body-medium text-xs text-danger-600">● En direct</Text>
-                </View>
-                <Text className="font-body text-white/60 text-xs mb-6">
-                  Enregistrement local — rien n'est envoyé à un serveur
-                </Text>
-                <Text className="font-body text-white/60 text-sm text-center leading-6 mb-10 px-6">
-                  Gardez le téléphone face à vous. L'alarme se déclenche
-                  automatiquement en cas de somnolence détectée.
-                </Text>
-
-                <Pressable onPress={stopMonitoring} className="mb-4">
-                  <Text className="font-body-medium text-white/50 text-sm underline">
-                    Arrêter l'enregistrement
-                  </Text>
-                </Pressable>
-
-                {/* Bouton de test — à retirer une fois la vraie détection ML branchée */}
-                <Pressable onPress={simulateEyesClosed} className="border border-white/20 rounded-2xl py-3 px-6">
-                  <Text className="font-body text-xs text-white/70">
-                    🧪 Simuler yeux fermés (test)
-                  </Text>
-                </Pressable>
-              </>
-            )}
-
-            {state === "alarm" && (
-              <View style={{ zIndex: 20 }} className="items-center">
-                <View className="w-28 h-28 rounded-full bg-white items-center justify-center mb-6">
-                  <Ionicons name="warning" size={52} color="#D8453C" />
-                </View>
-                <Text className="font-display-bold text-white text-2xl text-center mb-2">
-                  Réveillez-vous !
-                </Text>
-                <Text className="font-body text-white text-sm text-center leading-6 mb-10 px-6">
-                  Signe de somnolence détecté. Arrêtez-vous dès que possible
-                  si vous êtes fatigué.
-                </Text>
-                <AnimatedPressable onPress={dismissAlarm} className="bg-white rounded-2xl py-4 px-10" scaleTo={0.94}>
-                  <Text className="font-body-semibold text-danger-600 text-base">
-                    J'ai repris le contrôle
-                  </Text>
-                </AnimatedPressable>
-              </View>
-            )}
+        {/* Status */}
+        <View style={styles.statusContainer}>
+          <View
+            style={[
+              styles.statusBox,
+              { backgroundColor: isRecording ? '#DCFCE7' : '#FEE2E2' },
+            ]}
+          >
+            <Ionicons
+              name={isRecording ? 'checkmark-circle' : 'close-circle'}
+              size={20}
+              color={isRecording ? '#0F6E56' : '#7F1D1D'}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                { color: isRecording ? '#0F6E56' : '#7F1D1D' },
+              ]}
+            >
+              Status: {isRecording ? 'EN COURS' : 'Arrêté'}
+            </Text>
           </View>
+
+          <View
+            style={[
+              styles.statusBox,
+              { backgroundColor: state.eyesClosed ? '#FEE2E2' : '#DCFCE7' },
+            ]}
+          >
+            <Ionicons
+              name={state.eyesClosed ? 'eye-off' : 'eye'}
+              size={20}
+              color={state.eyesClosed ? '#7F1D1D' : '#0F6E56'}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                { color: state.eyesClosed ? '#7F1D1D' : '#0F6E56' },
+              ]}
+            >
+              Yeux: {state.eyesClosed ? 'FERMÉS' : 'Ouverts'}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.statusBox,
+              { backgroundColor: state.yawning ? '#FEE2E2' : '#DCFCE7' },
+            ]}
+          >
+            <Ionicons
+              name="happy"
+              size={20}
+              color={state.yawning ? '#7F1D1D' : '#0F6E56'}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                { color: state.yawning ? '#7F1D1D' : '#0F6E56' },
+              ]}
+            >
+              Bâillement: {state.yawning ? 'OUI' : 'Non'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Analysis Status */}
+        <View style={styles.analysisContainer}>
+          <Text style={styles.analysisLabel}>
+            📊 Analyse: {analysisStatus === 'analyzing' ? '⏳' : '✅'}
+          </Text>
+          <Text style={styles.analysisStatus}>{analysisStatus}</Text>
+        </View>
+
+        {/* Score */}
+        <View style={styles.sleepinessContainer}>
+          <Text style={styles.sleepinessLabel}>Score somnolence</Text>
+          <View style={styles.sleepinessBar}>
+            <View
+              style={[
+                styles.sleepinessProgress,
+                {
+                  width: `${state.sleepiness}%`,
+                  backgroundColor:
+                    state.sleepiness < 40
+                      ? '#10b981'
+                      : state.sleepiness < 70
+                      ? '#F59E0B'
+                      : '#EF4444',
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.sleepinessScore}>{state.sleepiness}/100</Text>
+        </View>
+
+        {/* Alerte */}
+        {state.alertActive && (
+          <View style={styles.alertBanner}>
+            <Ionicons name="alert-circle" size={24} color="#fff" />
+            <Text style={styles.alertText}>🚨 SOMNOLENCE DÉTECTÉE!</Text>
+          </View>
+        )}
+
+        {/* Buttons */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            onPress={toggleRecording}
+            style={[
+              styles.recordButton,
+              { backgroundColor: isRecording ? '#EF4444' : '#D85A30' },
+            ]}
+          >
+            <Ionicons
+              name={isRecording ? 'stop-circle' : 'play-circle'}
+              size={28}
+              color="#fff"
+            />
+            <Text style={styles.recordButtonText}>
+              {isRecording ? 'Arrêter' : 'Démarrer'}
+            </Text>
+          </TouchableOpacity>
+
+          {state.alertActive && (
+            <TouchableOpacity
+              onPress={stopAlarm}
+              style={styles.dismissButton}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+              <Text style={styles.dismissText}>OK - Je suis réveillé</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000' },
+  camera: { flex: 1 },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: '#9ca3af', fontSize: 14, marginTop: 12 },
+  errorTitle: { color: '#EF4444', fontSize: 18, fontWeight: '700', marginTop: 16 },
+  errorText: { color: '#9ca3af', fontSize: 14, marginTop: 8, textAlign: 'center' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  title: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  statusContainer: { gap: 8 },
+  statusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  statusText: { fontSize: 12, fontWeight: '600' },
+  analysisContainer: {
+    backgroundColor: 'rgba(100, 150, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  analysisLabel: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  analysisStatus: { color: '#6495ff', fontSize: 11, marginTop: 4 },
+  sleepinessContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  sleepinessLabel: { color: '#fff', fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  sleepinessBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  sleepinessProgress: { height: '100%', borderRadius: 4 },
+  sleepinessScore: { color: '#fff', fontSize: 12, fontWeight: '700', textAlign: 'right' },
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  alertText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  footer: { gap: 8 },
+  recordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  recordButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  dismissButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#DC2626',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  dismissText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+});

@@ -52,11 +52,20 @@ export default function Login() {
         // ✅ ATTENDRE LA MISE À JOUR DU STATE
         setTimeout(() => {
           console.log("🔵 DEBUG - user object:", user);
+          console.log("🔵 DEBUG - user?.is_admin:", user?.is_admin);
           console.log("🔵 DEBUG - user?.roles:", user?.roles);
-          console.log("🔵 DEBUG - typeof user?.roles:", typeof user?.roles);
           
           if (user) {
             console.log("✅ user existe");
+            
+            // ✅ VÉRIFIER D'ABORD SI ADMIN (PRIORITÉ!)
+            if (user.is_admin) {
+              console.log("✅ ADMIN DÉTECTÉ! Redirection vers /(admin)");
+              console.log("🔵 Avant router.replace/(admin)");
+              router.replace("/(admin)");
+              console.log("🔵 Après router.replace/(admin)");
+              return;  // ← IMPORTANT: sortir ici!
+            }
             
             // ✅ CONVERTIR LES RÔLES EN ARRAY (backend envoie "passenger,driver")
             const rolesArray = user.roles 
