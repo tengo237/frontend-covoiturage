@@ -23,6 +23,7 @@ const getImageUrl = (url: string | null) => {
 
 const MENU_ITEMS = [
   { icon: 'settings-outline', label: 'Paramètres', route: '/settings' },
+  { icon: 'credit-card-outline', label: 'Mode de paiement', route: '/payment-settings' },
   { icon: 'document-text-outline', label: 'Conditions d\'utilisation', route: '/terms' },
   { icon: 'shield-checkmark-outline', label: 'Confidentialité', route: '/privacy' },
   { icon: 'help-circle-outline', label: 'Aide & Support', route: '/support' },
@@ -275,7 +276,7 @@ export default function Profil() {
                   fontSize: 14,
                 }}
               >
-                🚗 Devenir Conducteur
+                 Devenir Conducteur
               </Text>
             </TouchableOpacity>
           </View>
@@ -332,6 +333,8 @@ export default function Profil() {
               onPress={() => {
                 if (item.route === '/settings') {
                   router.push('/settings');
+                } else if (item.route === '/payment-settings') {
+                  router.push('/payment-settings');
                 } else if (item.route === '/terms') {
                   Alert.alert('📄 Conditions d\'utilisation', 'Fonctionnalité bientôt disponible');
                 } else if (item.route === '/privacy') {

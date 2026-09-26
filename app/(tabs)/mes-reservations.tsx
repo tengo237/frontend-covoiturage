@@ -146,8 +146,9 @@ export default function MesReservations() {
     router.push({
       pathname: '/reservation-map',
       params: {
+        departure: reservation.trip?.departure_location || 'Départ',  // ✅ FIX
+        arrival: reservation.trip?.arrival_location || 'Arrivée',    // ✅ FIX
         reservationId: reservation.id.toString(),
-        tripData: JSON.stringify(reservation.trip),
       },
     });
   };

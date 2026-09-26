@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import MapView, { Marker, Polyline } from "react-native-maps";
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_BASE_URL = 'http://12.0.3.9:8000';
 
 interface LatLng {
   latitude: number;
@@ -24,13 +28,14 @@ interface RouteData {
 }
 
 export default function ReservationMapScreen() {
-  const { departure, arrival } = useLocalSearchParams();
+  const { departure, arrival, reservationId } = useLocalSearchParams();
   const router = useRouter();
 
   const [route, setRoute] = useState<RouteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRoute, setShowRoute] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<'loading' | 'cache' | 'fresh'>('loading');
 
   useEffect(() => {
     if (departure && arrival) {
@@ -38,8 +43,8 @@ export default function ReservationMapScreen() {
     }
   }, [departure, arrival]);
 
-  // ✅ Décoder les points polyline (format Google Maps)
-  const decodePolyline = (t: string) => {
+  // ✅ Décoder les points polyline (format OSRM)
+  const decodePolyline = (t: string): LatLng[] => {
     const points: LatLng[] = [];
     let index = 0;
     let lat = 0;
@@ -75,308 +80,458 @@ export default function ReservationMapScreen() {
     return points;
   };
 
-  // ✅ Récupérer l'itinéraire via Nominatim + OSRM
+  // ✅ Récupérer l'itinéraire avec CACHE optimisé
   const fetchRoute = async (departureLocation: string, arrivalLocation: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log(`🗺️ Récupération positions: ${departureLocation} → ${arrivalLocation}`);
+      const cacheKey = `route_${departureLocation}_${arrivalLocation}`;
+      
+      console.log(`🗺️ Récupération route: ${departureLocation} → ${arrivalLocation}`);
 
-      // 1️⃣ Géocoder le point de départ
-      const originResponse = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(departureLocation)}&format=json&limit=1`
-      );
-      const originData = await originResponse.json();
-
-      if (!originData || originData.length === 0) {
-        setError(`Lieu de départ introuvable: ${departureLocation}`);
+      // 1️⃣ VÉRIFIER LE CACHE D'ABORD
+      const cachedRoute = await AsyncStorage.getItem(cacheKey);
+      if (cachedRoute) {
+        console.log('⚡ Cache trouvé! Affichage instantané');
+        setCacheStatus('cache');
+        setRoute(JSON.parse(cachedRoute));
         setLoading(false);
         return;
       }
 
-      const originLat = parseFloat(originData[0].lat);
-      const originLng = parseFloat(originData[0].lon);
+      setCacheStatus('fresh');
+      console.log('🔄 Pas de cache, fetching OSRM...');
 
-      console.log(`✅ Départ trouvé: ${originLat}, ${originLng}`);
+      // 2️⃣ RÉCUPÉRER LES COORDONNÉES DEPUIS LE BACKEND
+      // Le backend retourne maintenant:
+      // {
+      //   "departure_location": "Yaoundé",
+      //   "departure_latitude": 3.8667,
+      //   "departure_longitude": 11.5167,
+      //   "arrival_location": "Douala",
+      //   "arrival_latitude": 4.0511,
+      //   "arrival_longitude": 9.7679
+      // }
 
-      // 2️⃣ Géocoder le point d'arrivée
-      const destResponse = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(arrivalLocation)}&format=json&limit=1`
-      );
-      const destData = await destResponse.json();
+      // Pour ce premier call, on utilise les coordonnées passées en params
+      // Mais idéalement, on devrait fetcher la réservation depuis le backend
+      // qui retournerait les coordonnées précises
+      
+      // VALEURS PAR DÉFAUT (coordonnées villes Cameroun)
+      const COORDS: Record<string, LatLng> = {
+        'yaoundé': { latitude: 3.8667, longitude: 11.5167 },
+        'douala': { latitude: 4.0511, longitude: 9.7679 },
+        'bafoussam': { latitude: 5.7679, longitude: 10.4167 },
+        'kribi': { latitude: 2.9333, longitude: 9.9167 },
+        'buea': { latitude: 4.1628, longitude: 9.2410 },
+        'bamenda': { latitude: 5.9631, longitude: 10.1591 },
+        'garoua': { latitude: 9.3077, longitude: 13.3948 },
+        'maroua': { latitude: 10.5916, longitude: 14.3055 },
+      };
 
-      if (!destData || destData.length === 0) {
-        setError(`Lieu d'arrivée introuvable: ${arrivalLocation}`);
-        setLoading(false);
-        return;
+      const originLoc = departureLocation.toLowerCase();
+      const destLoc = arrivalLocation.toLowerCase();
+
+      const origin = COORDS[originLoc] || COORDS['yaoundé'];
+      const destination = COORDS[destLoc] || COORDS['douala'];
+
+      console.log(`📍 Coordonnées trouvées:`);
+      console.log(`   Départ: ${origin.latitude}, ${origin.longitude}`);
+      console.log(`   Arrivée: ${destination.latitude}, ${destination.longitude}`);
+
+      // 3️⃣ APPELER OSRM (ROUTE SERVICE)
+      console.log('🔄 Appel OSRM...');
+      
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&steps=true&geometries=polyline`;
+      
+      console.log(`📡 URL: ${osrmUrl}`);
+
+      const routeResponse = await fetch(osrmUrl);
+      
+      if (!routeResponse.ok) {
+        throw new Error(`OSRM Error: ${routeResponse.status}`);
       }
 
-      const destLat = parseFloat(destData[0].lat);
-      const destLng = parseFloat(destData[0].lon);
-
-      console.log(`✅ Arrivée trouvée: ${destLat}, ${destLng}`);
-
-      // 3️⃣ Récupérer l'itinéraire via OSRM
-      const routeResponse = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=geojson`
-      );
       const routeData = await routeResponse.json();
 
-      if (routeData.code !== "Ok" || !routeData.routes || routeData.routes.length === 0) {
-        setError("Impossible de calculer l'itinéraire");
+      if (!routeData.routes || routeData.routes.length === 0) {
+        setError('Itinéraire non trouvé');
         setLoading(false);
         return;
       }
 
-      const routeInfo = routeData.routes[0];
-      const distanceKm = (routeInfo.distance / 1000).toFixed(2);
-      const durationMins = Math.round(routeInfo.duration / 60);
-      const durationHours = Math.floor(durationMins / 60);
-      const durationRemainMins = durationMins % 60;
+      const firstRoute = routeData.routes[0];
+      const geometry = firstRoute.geometry;
+      const distance = (firstRoute.distance / 1000).toFixed(1); // km
+      const duration = Math.round(firstRoute.duration / 60); // minutes
 
-      let durationText = "";
-      if (durationHours > 0) {
-        durationText = `${durationHours}h ${durationRemainMins}min`;
-      } else {
-        durationText = `${durationMins}min`;
-      }
+      // Décoder polyline
+      const polylinePoints = decodePolyline(geometry);
 
-      const coordinates = routeInfo.geometry.coordinates;
-      const polylineCoords = coordinates.map((c: [number, number]) => ({
-        latitude: c[1],
-        longitude: c[0],
-      }));
+      const newRoute: RouteData = {
+        origin,
+        destination,
+        polylinePoints,
+        distance: `${distance} km`,
+        duration: `${duration} min`,
+      };
 
-      console.log(`✅ Itinéraire: ${distanceKm}km, ${durationText}`);
+      console.log(`✅ Route chargée: ${distance}km, ${duration}min`);
 
-      setRoute({
-        origin: { latitude: originLat, longitude: originLng },
-        destination: { latitude: destLat, longitude: destLng },
-        polylinePoints: polylineCoords,
-        distance: `${distanceKm} km`,
-        duration: durationText,
-      });
-    } catch (err) {
-      console.error("❌ Erreur:", err);
-      setError("Erreur de connexion");
-    } finally {
+      // 4️⃣ SAUVEGARDER EN CACHE
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(newRoute));
+      console.log(`💾 Route sauvegardée en cache`);
+
+      setRoute(newRoute);
       setLoading(false);
+
+    } catch (err) {
+      console.error('❌ Erreur:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Erreur connexion';
+      setError(errorMsg);
+      setLoading(false);
+      Alert.alert('Erreur', errorMsg);
+    }
+  };
+
+  // ✅ Effacer le cache (bouton debug)
+  const clearCache = async () => {
+    try {
+      const cacheKey = `route_${departure}_${arrival}`;
+      await AsyncStorage.removeItem(cacheKey);
+      Alert.alert('Cache effacé', 'Rechargez la page');
+    } catch (err) {
+      console.error('Erreur effacement cache:', err);
     }
   };
 
   if (error) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF6EF" }}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 16 }}>
-          <Ionicons name="alert-circle" size={60} color="#D85A30" />
-          <Text style={{ fontSize: 16, fontWeight: "600", color: "#1F2937", marginTop: 16 }}>
-            Erreur
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FBF6EF' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
+          <Ionicons name="alert-circle" size={56} color="#EF4444" />
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginTop: 16, textAlign: 'center' }}>
+            Erreur chargement
           </Text>
-          <Text style={{ fontSize: 14, color: "#9CA3AF", marginTop: 8, textAlign: "center" }}>
+          <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 8, textAlign: 'center' }}>
             {error}
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
             style={{
-              backgroundColor: "#D85A30",
-              borderRadius: 8,
-              paddingHorizontal: 16,
-              paddingVertical: 10,
+              backgroundColor: '#D85A30',
+              borderRadius: 12,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
               marginTop: 20,
             }}
           >
-            <Text style={{ color: "#FFF", fontWeight: "600" }}>Retour</Text>
+            <Text style={{ color: '#FFF', fontWeight: '700' }}>Retour</Text>
           </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF6EF" }}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color="#D85A30" />
-          <Text style={{ marginTop: 16, color: "#9CA3AF" }}>Chargement de la map...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF6EF" }}>
-      {/* Map */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FBF6EF' }}>
+      {/* MAP */}
       {route && (
         <MapView
           style={{ flex: 1 }}
           initialRegion={{
             latitude: (route.origin.latitude + route.destination.latitude) / 2,
             longitude: (route.origin.longitude + route.destination.longitude) / 2,
-            latitudeDelta: 0.1,
-            longitudeDelta: 0.1,
+            latitudeDelta: Math.abs(route.origin.latitude - route.destination.latitude) + 0.5,
+            longitudeDelta: Math.abs(route.origin.longitude - route.destination.longitude) + 0.5,
           }}
         >
-          {/* Polyline - itinéraire (optionnel) */}
+          {/* Polyline (Route) */}
           {showRoute && (
             <Polyline
               coordinates={route.polylinePoints}
               strokeColor="#D85A30"
-              strokeWidth={4}
+              strokeWidth={3}
+              geodesic={true}
             />
           )}
 
-          {/* Marker - Point de départ (Conducteur) */}
+          {/* Marker - Point de départ */}
           <Marker
             coordinate={route.origin}
-            title="Départ du conducteur"
+            title="Départ"
             description={departure}
             pinColor="#EF4444"
-          />
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#EF4444',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 3,
+                borderColor: '#FFF',
+              }}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 18 }}>A</Text>
+            </View>
+          </Marker>
 
-          {/* Marker - Point d'arrivée (Passager) */}
+          {/* Marker - Point d'arrivée */}
           <Marker
             coordinate={route.destination}
-            title="Position du passager"
+            title="Arrivée"
             description={arrival}
             pinColor="#10B981"
-          />
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#10B981',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 3,
+                borderColor: '#FFF',
+              }}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 18 }}>B</Text>
+            </View>
+          </Marker>
         </MapView>
       )}
 
-      {/* Header */}
+      {/* LOADING */}
+      {loading && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 100,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#FFF',
+              borderRadius: 16,
+              padding: 24,
+              alignItems: 'center',
+            }}
+          >
+            <ActivityIndicator size="large" color="#D85A30" />
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginTop: 16 }}>
+              Chargement de la route...
+            </Text>
+            <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
+              {cacheStatus === 'cache' ? '⚡ Depuis le cache' : '🔄 Calcul itinéraire'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* HEADER */}
       <View
         style={{
-          position: "absolute",
+          position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
-          backgroundColor: "#FFF",
+          backgroundColor: '#FFF',
           paddingHorizontal: 16,
           paddingVertical: 12,
           borderBottomWidth: 1,
-          borderBottomColor: "#E8D5C4",
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
+          borderBottomColor: '#E8D5C4',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           zIndex: 10,
         }}
       >
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: "#1F2937", flex: 1, marginLeft: 12 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: '700',
+            color: '#1F2937',
+            flex: 1,
+            marginLeft: 12,
+          }}
+          numberOfLines={1}
+        >
           {departure} → {arrival}
         </Text>
+        {/* Badge Cache */}
+        {cacheStatus === 'cache' && (
+          <View
+            style={{
+              backgroundColor: '#DCFCE7',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 6,
+              marginLeft: 8,
+            }}
+          >
+            <Text style={{ fontSize: 10, color: '#0F6E56', fontWeight: '600' }}>⚡ Cache</Text>
+          </View>
+        )}
       </View>
 
-      {/* Bottom Info Panel */}
+      {/* BOTTOM INFO PANEL */}
       {route && (
         <View
           style={{
-            position: "absolute",
+            position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
-            backgroundColor: "#FFF",
+            backgroundColor: '#FFF',
             borderTopWidth: 1,
-            borderTopColor: "#E8D5C4",
+            borderTopColor: '#E8D5C4',
             paddingHorizontal: 16,
             paddingVertical: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
           }}
         >
-          {/* Info: Distance et Durée */}
+          {/* Distance et Durée */}
           <View
             style={{
-              flexDirection: "row",
-              justifyContent: "space-around",
-              alignItems: "center",
-              marginBottom: 12,
+              flexDirection: 'row',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              marginBottom: 16,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: '#E8D5C4',
             }}
           >
-            <View style={{ alignItems: "center" }}>
-              <Ionicons name="navigate" size={24} color="#D85A30" />
-              <Text
+            {/* Distance */}
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <View
                 style={{
-                  fontSize: 13,
-                  fontWeight: "700",
-                  color: "#1F2937",
-                  marginTop: 4,
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  backgroundColor: '#FEE2E2',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginBottom: 8,
                 }}
               >
+                <Ionicons name="navigate" size={24} color="#D85A30" />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>
                 {route.distance}
               </Text>
+              <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Distance</Text>
             </View>
 
-            <View
-              style={{
-                height: 40,
-                width: 1,
-                backgroundColor: "#E8D5C4",
-              }}
-            />
-
-            <View style={{ alignItems: "center" }}>
-              <Ionicons name="time" size={24} color="#D85A30" />
-              <Text
+            {/* Durée */}
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <View
                 style={{
-                  fontSize: 13,
-                  fontWeight: "700",
-                  color: "#1F2937",
-                  marginTop: 4,
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  backgroundColor: '#DBEAFE',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginBottom: 8,
                 }}
               >
+                <Ionicons name="time" size={24} color="#3B82F6" />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937' }}>
                 {route.duration}
               </Text>
+              <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Durée</Text>
             </View>
           </View>
 
-          {/* Bouton Afficher/Masquer itinéraire */}
-          <TouchableOpacity
-            onPress={() => setShowRoute(!showRoute)}
-            style={{
-              backgroundColor: showRoute ? "#D85A30" : "#3B82F6",
-              borderRadius: 12,
-              paddingVertical: 12,
-              alignItems: "center",
-              marginBottom: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name={showRoute ? "close" : "road"} size={18} color="#FFF" />
+          {/* Boutons */}
+          <View style={{ gap: 12 }}>
+            {/* Afficher/Masquer itinéraire */}
+            <TouchableOpacity
+              onPress={() => setShowRoute(!showRoute)}
+              style={{
+                backgroundColor: showRoute ? '#D85A30' : '#3B82F6',
+                borderRadius: 12,
+                paddingVertical: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons
+                name={showRoute ? 'close-circle' : 'road'}
+                size={18}
+                color="#FFF"
+              />
               <Text
                 style={{
-                  color: "#FFF",
-                  fontWeight: "700",
+                  color: '#FFF',
+                  fontWeight: '700',
                   fontSize: 14,
                   marginLeft: 8,
                 }}
               >
-                {showRoute ? "Masquer l'itinéraire" : "Afficher l'itinéraire"}
+                {showRoute ? 'Masquer itinéraire' : 'Afficher itinéraire'}
               </Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          {/* Bouton Retour */}
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={{
-              backgroundColor: "#F3F4F6",
-              borderRadius: 12,
-              paddingVertical: 12,
-              alignItems: "center",
-            }}
-          >
-            <Text
+            {/* Retour */}
+            <TouchableOpacity
+              onPress={() => router.back()}
               style={{
-                color: "#1F2937",
-                fontWeight: "700",
-                fontSize: 14,
+                backgroundColor: '#F3F4F6',
+                borderRadius: 12,
+                paddingVertical: 12,
+                alignItems: 'center',
               }}
             >
-              Retour
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={{
+                  color: '#1F2937',
+                  fontWeight: '700',
+                  fontSize: 14,
+                }}
+              >
+                Retour
+              </Text>
+            </TouchableOpacity>
+
+            {/* Debug: Clear Cache */}
+            <TouchableOpacity
+              onPress={clearCache}
+              style={{
+                backgroundColor: '#F9FAFB',
+                borderRadius: 12,
+                paddingVertical: 8,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+              }}
+            >
+              <Text style={{ color: '#9CA3AF', fontWeight: '500', fontSize: 11 }}>
+                🔄 Effacer cache
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
     </SafeAreaView>

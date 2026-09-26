@@ -18,6 +18,9 @@ const API_BASE_URL = 'http://12.0.3.9:8000';
 
 const getImageUrl = (url: string | null) => {
   if (!url) return 'https://via.placeholder.com/50?text=User';
+  if (url.includes('12.0.13.180')) {
+    return url.replace('12.0.13.180', '12.0.3.9');
+  }
   if (url.startsWith('http')) return url;
   return `${API_BASE_URL}${url}`;
 };
@@ -89,7 +92,12 @@ export default function Messages() {
 
       const data = await response.json();
       console.log('🟢 Conversations chargées:', data.conversations?.length || 0);
-      setConversations(data.conversations || []);
+      
+      // ✅ DÉDUPLICATION FRONTEND (au cas où)
+      const deduplicatedConversations = deduplicateConversations(data.conversations || []);
+      console.log('✅ Après déduplication:', deduplicatedConversations.length);
+      
+      setConversations(deduplicatedConversations);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       console.error('🔴 Erreur:', message);
@@ -97,6 +105,32 @@ export default function Messages() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ FONCTION DÉDUPLICATION FRONTEND
+  const deduplicateConversations = (convs: Conversation[]): Conversation[] => {
+    const uniqueMap = new Map<string, Conversation>();
+
+    for (const conv of convs) {
+      // Créer une clé unique basée sur les users (peu importe l'ordre)
+      const userIds = [conv.user_1_id, conv.user_2_id].sort().join('_');
+      const key = `conv_${userIds}`;
+
+      // Garder seulement la conversation la plus récente
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, conv);
+      } else {
+        const existing = uniqueMap.get(key)!;
+        const existingDate = new Date(existing.updated_at || existing.created_at || 0).getTime();
+        const newDate = new Date(conv.updated_at || conv.created_at || 0).getTime();
+        
+        if (newDate > existingDate) {
+          uniqueMap.set(key, conv);
+        }
+      }
+    }
+
+    return Array.from(uniqueMap.values());
   };
 
   const onRefresh = async () => {
@@ -264,6 +298,7 @@ export default function Messages() {
       <SafeAreaView style={{ flex: 1, backgroundColor: '#FBF6EF' }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#D85A30" />
+          <Text style={{ marginTop: 12, color: '#9ca3af' }}>Chargement...</Text>
         </View>
       </SafeAreaView>
     );
@@ -287,7 +322,7 @@ export default function Messages() {
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#6b7280', marginTop: 16 }}>
             Aucune conversation
           </Text>
-          <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 8, textAlign: 'center' }}>
+          <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 8, textAlign: 'center', paddingHorizontal: 20 }}>
             Vos conversations apparaîtront ici
           </Text>
         </View>
@@ -295,7 +330,7 @@ export default function Messages() {
         <FlatList
           data={conversations}
           renderItem={renderConversation}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item, index) => `${item.id}_${index}`}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         />
       )}

@@ -7,12 +7,9 @@ import {
   RefreshControl,
   Image,
   TouchableOpacity,
-  TextInput,
   Alert,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useUser } from '../../context/UserContext';
@@ -41,25 +38,14 @@ export default function Accueil() {
   const router = useRouter();
   const { user, token } = useUser();
   const [trips, setTrips] = useState<any[]>([]);
-  const [filteredTrips, setFilteredTrips] = useState<any[]>([]);
-  const [userReservationIds, setUserReservationIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [reserving, setReserving] = useState<number | null>(null);
-
-  // Filtres
-  const [searchDepart, setSearchDepart] = useState('');
-  const [searchArrivee, setSearchArrivee] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTime, setSelectedTime] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // ✅ CHARGER AU MOUNT
   useEffect(() => {
     if (token) {
       console.log('🔵 Début chargement...');
-      loadTripsAndReservations();
+      loadTrips();
     }
   }, [token]);
 
@@ -68,22 +54,16 @@ export default function Accueil() {
     React.useCallback(() => {
       console.log('🔄 Retour sur Accueil - Recharger les données...');
       if (token) {
-        loadTripsAndReservations();
+        loadTrips();
       }
     }, [token])
   );
 
-  // Filtrer en temps réel
-  useEffect(() => {
-    filterTrips();
-  }, [searchDepart, searchArrivee, selectedDate, selectedTime, trips]);
-
-  // ✅ CHARGER LES DEUX EN PARALLÈLE
-  const loadTripsAndReservations = async () => {
+  // ✅ CHARGER LES TRAJETS
+  const loadTrips = async () => {
     try {
       setLoading(true);
 
-      // Charger les trajets
       console.log('📍 Chargement trajets...');
       const tripsResponse = await fetch(`${API_BASE_URL}/api/trips/available`, {
         method: 'GET',
@@ -97,24 +77,6 @@ export default function Accueil() {
       const tripsData = await tripsResponse.json();
       console.log('✅ Trajets:', tripsData.trips?.length || 0);
       setTrips(tripsData.trips || []);
-
-      // Charger les réservations
-      console.log('📍 Chargement réservations...');
-      const reservationsResponse = await fetch(`${API_BASE_URL}/api/reservations/my-reservations`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (reservationsResponse.ok) {
-        const reservationsData = await reservationsResponse.json();
-        const tripIds = (reservationsData.reservations || []).map((r: any) => r.trip_id);
-        console.log('✅ Réservations:', reservationsData.reservations?.length || 0);
-        console.log('✅ Trip IDs réservés:', tripIds);
-        setUserReservationIds(tripIds);
-      }
     } catch (error) {
       console.error('❌ Erreur:', error);
       Alert.alert('Erreur', 'Impossible de charger les données');
@@ -123,133 +85,18 @@ export default function Accueil() {
     }
   };
 
-  const filterTrips = () => {
-    let filtered = trips;
-
-    if (searchDepart) {
-      filtered = filtered.filter((trip) =>
-        trip.departure_location?.toLowerCase().includes(searchDepart.toLowerCase())
-      );
-    }
-
-    if (searchArrivee) {
-      filtered = filtered.filter((trip) =>
-        trip.arrival_location?.toLowerCase().includes(searchArrivee.toLowerCase())
-      );
-    }
-
-    if (selectedDate) {
-      const filterDateStr = selectedDate.toISOString().split('T')[0];
-      filtered = filtered.filter((trip) => {
-        if (!trip.departure_time) return false;
-        const tripDateStr = trip.departure_time.split('T')[0];
-        return tripDateStr === filterDateStr;
-      });
-    }
-
-    if (selectedTime && selectedDate) {
-      const selectedHour = selectedTime.getHours();
-      filtered = filtered.filter((trip) => {
-        if (!trip.departure_time) return false;
-        const tripHour = new Date(trip.departure_time).getHours();
-        return tripHour >= selectedHour;
-      });
-    }
-
-    console.log('🔍 Trajets filtrés:', filtered.length);
-    setFilteredTrips(filtered);
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadTripsAndReservations();
+    await loadTrips();
     setRefreshing(false);
   };
 
-  const handleDateChange = (event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-    if (date) {
-      setSelectedDate(date);
-    }
-  };
-
-  const handleTimeChange = (event: any, time?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
-    if (time) {
-      setSelectedTime(time);
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (time: Date) => {
-    return time.toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // ✅ VÉRIFIER SI TRAJET EST RÉSERVÉ
-  const isReserved = (tripId: number) => {
-    return userReservationIds.includes(tripId);
-  };
-
-  const handleReserver = async (tripId: number) => {
-    try {
-      setReserving(tripId);
-      console.log('📌 Réservation pour trip:', tripId);
-
-      if (!token) {
-        Alert.alert('Erreur', 'Vous devez être connecté');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/reservations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          trip_id: tripId,
-          number_of_seats: 1,
-        }),
-      });
-
-      console.log('📩 Status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Erreur réservation');
-      }
-
-      Alert.alert('✅ Succès!', 'Votre réservation a été confirmée');
-      await loadTripsAndReservations();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur';
-      console.error('❌ Erreur:', message);
-      Alert.alert('❌ Erreur', message);
-    } finally {
-      setReserving(null);
-    }
-  };
-
   const renderTrip = ({ item }: any) => {
-    const alreadyReserved = isReserved(item.id);
-
     return (
-      <View
+      // ✅ NAVIGATION VERS /trip/[id]
+      <TouchableOpacity
+        onPress={() => router.push(`/trip/${item.id}`)}
+        activeOpacity={0.9}
         style={{
           marginBottom: 16,
           marginHorizontal: 12,
@@ -261,7 +108,6 @@ export default function Accueil() {
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.15,
           shadowRadius: 8,
-          opacity: alreadyReserved ? 0.7 : 1,
         }}
       >
         {/* Image Véhicule */}
@@ -329,28 +175,6 @@ export default function Accueil() {
               /personne
             </Text>
           </View>
-
-          {/* Badge "Déjà réservé" */}
-          {alreadyReserved && (
-            <View
-              style={{
-                position: 'absolute',
-                top: 12,
-                left: 12,
-                backgroundColor: 'rgba(16, 185, 129, 0.9)',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 20,
-                flexDirection: 'row',
-                alignItems: 'center',
-              }}
-            >
-              <Ionicons name="checkmark-circle" size={14} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>
-                Déjà réservé
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Infos Conducteur */}
@@ -517,55 +341,23 @@ export default function Accueil() {
           </View>
 
           {/* Bouton */}
-          {alreadyReserved ? (
-            <View
-              style={{
-                backgroundColor: '#d1d5db',
-                paddingVertical: 14,
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                borderRadius: 12,
-              }}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#6b7280" />
-              <Text style={{ color: '#6b7280', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
-                ✅ Vous avez réservé
-              </Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              onPress={() => handleReserver(item.id)}
-              disabled={reserving === item.id}
-              style={{
-                backgroundColor: reserving === item.id ? '#B8481F' : '#D85A30',
-                paddingVertical: 14,
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                borderRadius: 12,
-                opacity: reserving === item.id ? 0.7 : 1,
-              }}
-            >
-              {reserving === item.id ? (
-                <>
-                  <ActivityIndicator size="small" color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
-                    Réservation...
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
-                    Réserver ce trajet
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+          <View
+            style={{
+              backgroundColor: '#D85A30',
+              paddingVertical: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              borderRadius: 12,
+            }}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 }}>
+              Voir les détails
+            </Text>
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -589,18 +381,19 @@ export default function Accueil() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FBF6EF' }}>
-      {/* Header */}
+      {/* Header SIMPLE */}
       <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
         <Text style={{ fontSize: 28, fontWeight: '800', color: '#1f2937', marginBottom: 4 }}>
           Bonjour! 👋
         </Text>
         <Text style={{ fontSize: 14, color: '#9ca3af' }}>
-          {filteredTrips.length} trajet{filteredTrips.length > 1 ? 's' : ''} trouvé{filteredTrips.length > 1 ? 's' : ''}
+          {trips.length} trajet{trips.length > 1 ? 's' : ''} disponible{trips.length > 1 ? 's' : ''}
         </Text>
       </View>
 
+      {/* FLATLIST - TRAJETS SEULEMENT */}
       <FlatList
-        data={filteredTrips}
+        data={trips}
         renderItem={renderTrip}
         keyExtractor={(item) => item.id.toString()}
         refreshControl={
@@ -608,173 +401,15 @@ export default function Accueil() {
         }
         contentContainerStyle={{ paddingBottom: 20 }}
         scrollEnabled={true}
-        ListHeaderComponent={
-          <View style={{ paddingHorizontal: 12, marginBottom: 16 }}>
-            {/* Titre Formulaire */}
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: '700',
-                color: '#1f2937',
-                marginBottom: 12,
-                marginLeft: 4,
-              }}
-            >
-              🔍 Rechercher un trajet
-            </Text>
-
-            {/* Champ Départ */}
-            <TextInput
-              placeholder="Lieu de départ..."
-              value={searchDepart}
-              onChangeText={setSearchDepart}
-              style={{
-                backgroundColor: '#fff',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                marginBottom: 10,
-                borderWidth: 1,
-                borderColor: '#E8D5C4',
-                fontSize: 14,
-                color: '#1f2937',
-              }}
-              placeholderTextColor="#9ca3af"
-            />
-
-            {/* Champ Arrivée */}
-            <TextInput
-              placeholder="Lieu d'arrivée..."
-              value={searchArrivee}
-              onChangeText={setSearchArrivee}
-              style={{
-                backgroundColor: '#fff',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                marginBottom: 10,
-                borderWidth: 1,
-                borderColor: '#E8D5C4',
-                fontSize: 14,
-                color: '#1f2937',
-              }}
-              placeholderTextColor="#9ca3af"
-            />
-
-            {/* Champ Date - DatePicker */}
-            <TouchableOpacity
-              onPress={() => setShowDatePicker(true)}
-              style={{
-                backgroundColor: '#fff',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                marginBottom: 10,
-                borderWidth: 1,
-                borderColor: '#E8D5C4',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: selectedDate ? '#1f2937' : '#9ca3af',
-                  fontWeight: '500',
-                }}
-              >
-                {selectedDate ? formatDate(selectedDate) : 'Choisir une date...'}
-              </Text>
-              <Ionicons name="calendar" size={20} color="#D85A30" />
-            </TouchableOpacity>
-
-            {/* Champ Heure - TimePicker */}
-            {selectedDate && (
-              <TouchableOpacity
-                onPress={() => setShowTimePicker(true)}
-                style={{
-                  backgroundColor: '#fff',
-                  borderRadius: 10,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  marginBottom: 10,
-                  borderWidth: 1,
-                  borderColor: '#E8D5C4',
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: selectedTime ? '#1f2937' : '#9ca3af',
-                    fontWeight: '500',
-                  }}
-                >
-                  {selectedTime ? formatTime(selectedTime) : 'Choisir une heure...'}
-                </Text>
-                <Ionicons name="time" size={20} color="#D85A30" />
-              </TouchableOpacity>
-            )}
-
-            {/* Bouton Réinitialiser Filtre */}
-            {(selectedDate || selectedTime || searchDepart || searchArrivee) && (
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedDate(null);
-                  setSelectedTime(null);
-                  setSearchDepart('');
-                  setSearchArrivee('');
-                }}
-                style={{
-                  backgroundColor: '#f0f0f0',
-                  borderRadius: 10,
-                  paddingVertical: 10,
-                  alignItems: 'center',
-                  marginBottom: 10,
-                }}
-              >
-                <Text style={{ color: '#D85A30', fontWeight: '600' }}>
-                  ✕ Réinitialiser les filtres
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        }
         ListEmptyComponent={
           <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <Ionicons name="search-outline" size={56} color="#D1D5DB" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#6b7280', marginTop: 16 }}>
               Aucun trajet trouvé
             </Text>
-            <Text style={{ fontSize: 14, color: '#9ca3af', marginTop: 8, textAlign: 'center' }}>
-              Essayez de modifier vos critères de recherche
-            </Text>
           </View>
         }
       />
-
-      {/* DatePicker Modal */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
-        />
-      )}
-
-      {/* TimePicker Modal */}
-      {showTimePicker && (
-        <DateTimePicker
-          value={selectedTime || new Date()}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleTimeChange}
-        />
-      )}
     </View>
   );
 }
