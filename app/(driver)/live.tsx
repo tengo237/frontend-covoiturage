@@ -1,4 +1,4 @@
-// app/(driver)/live.tsx - Avec capture de frames
+// app/(driver)/live.tsx - AVEC DÉTECTION CLIGNEMENT vs SOMMEIL
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -20,12 +20,13 @@ export default function LiveScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState('idle');
+  const [eyesClosedDuration, setEyesClosedDuration] = useState(0);
+  const [detectionType, setDetectionType] = useState<'blink' | 'sleep' | 'none'>('none');
   const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { state, stopAlarm, startMonitoring, stopMonitoring, isMonitoring, analyzeFace } =
     useSleepDetection();
 
-  // Demander permission
   useEffect(() => {
     const checkPermission = async () => {
       if (!permission) {
@@ -36,7 +37,34 @@ export default function LiveScreen() {
     checkPermission();
   }, [permission, requestPermission]);
 
-  // Cleanup
+  // ✅ NOUVEAU: Tracker la durée et distinguer clignement vs sommeil
+  useEffect(() => {
+    if (state.eyesClosed) {
+      const interval = setInterval(() => {
+        setEyesClosedDuration((prev) => {
+          const next = prev + 1;
+          
+          // Déterminer si c'est un clignement ou du sommeil
+          if (next < 2) {
+            setDetectionType('blink');
+            console.log(`[👁️ BLINK] ${next}s (score = 0)`);
+          } else {
+            setDetectionType('sleep');
+            console.log(`[😴 SLEEP] ${next}s / 30s`);
+          }
+          
+          return Math.min(next, 30);
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      // Yeux ouverts - reset
+      setEyesClosedDuration(0);
+      setDetectionType('none');
+    }
+  }, [state.eyesClosed]);
+
   useEffect(() => {
     return () => {
       console.log('[LIVE] Unmounting');
@@ -49,7 +77,6 @@ export default function LiveScreen() {
     };
   }, [isRecording, stopMonitoring]);
 
-  // Capturer et analyser les frames
   const startFrameCapture = async () => {
     console.log('[LIVE] Starting frame capture...');
 
@@ -78,10 +105,9 @@ export default function LiveScreen() {
           setAnalysisStatus('error');
         }
       }
-    }, 1000); // Capturer chaque seconde
+    }, 1000);
   };
 
-  // Toggle recording
   const toggleRecording = async () => {
     console.log('[LIVE] toggleRecording - isRecording:', isRecording);
 
@@ -97,10 +123,14 @@ export default function LiveScreen() {
 
         stopMonitoring();
         setAnalysisStatus('idle');
+        setEyesClosedDuration(0);
+        setDetectionType('none');
       } else {
         console.log('[LIVE] Starting...');
         setIsRecording(true);
         setAnalysisStatus('idle');
+        setEyesClosedDuration(0);
+        setDetectionType('none');
 
         await startMonitoring();
         await startFrameCapture();
@@ -134,6 +164,30 @@ export default function LiveScreen() {
     );
   }
 
+  // Déterminer les couleurs basées sur le type de détection et la durée
+  let timerColor = '#9ca3af';
+  let timerBgColor = 'rgba(255, 255, 255, 0.1)';
+  let timerLabel = '';
+
+  if (detectionType === 'blink') {
+    timerColor = '#0F6E56';
+    timerBgColor = 'rgba(16, 185, 129, 0.2)';
+    timerLabel = `${eyesClosedDuration}s - Clignement`;
+  } else if (detectionType === 'sleep') {
+    const remaining = 30 - eyesClosedDuration;
+    if (remaining > 20) {
+      timerColor = '#3B82F6';
+      timerBgColor = 'rgba(59, 130, 246, 0.2)';
+    } else if (remaining > 10) {
+      timerColor = '#F59E0B';
+      timerBgColor = 'rgba(245, 158, 11, 0.2)';
+    } else {
+      timerColor = '#EF4444';
+      timerBgColor = 'rgba(239, 68, 68, 0.2)';
+    }
+    timerLabel = `${eyesClosedDuration}s / 30s - SOMMEIL`;
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing="front" ratio="16:9" />
@@ -141,7 +195,7 @@ export default function LiveScreen() {
       <View style={styles.overlay}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>🚗 Monitoring Conducteur</Text>
+          <Text style={styles.title}> Monitoring Conducteur</Text>
           <Ionicons
             name={isRecording ? 'videocam' : 'videocam-off'}
             size={24}
@@ -192,38 +246,36 @@ export default function LiveScreen() {
               Yeux: {state.eyesClosed ? 'FERMÉS' : 'Ouverts'}
             </Text>
           </View>
+        </View>
 
+        {/* ✅ NOUVEAU: Timer avec distinction clignement vs sommeil */}
+        {state.eyesClosed && detectionType !== 'none' && (
           <View
             style={[
-              styles.statusBox,
-              { backgroundColor: state.yawning ? '#FEE2E2' : '#DCFCE7' },
+              styles.timerContainer,
+              { backgroundColor: timerBgColor },
             ]}
           >
             <Ionicons
-              name="happy"
+              name={detectionType === 'blink' ? 'eye' : 'timer'}
               size={20}
-              color={state.yawning ? '#7F1D1D' : '#0F6E56'}
+              color={timerColor}
             />
-            <Text
-              style={[
-                styles.statusText,
-                { color: state.yawning ? '#7F1D1D' : '#0F6E56' },
-              ]}
-            >
-              Bâillement: {state.yawning ? 'OUI' : 'Non'}
+            <Text style={[styles.timerText, { color: timerColor }]}>
+              {timerLabel}
             </Text>
           </View>
-        </View>
+        )}
 
         {/* Analysis Status */}
         <View style={styles.analysisContainer}>
           <Text style={styles.analysisLabel}>
-            📊 Analyse: {analysisStatus === 'analyzing' ? '⏳' : '✅'}
+             Analyse: {analysisStatus === 'analyzing' ? '⏳' : ''}
           </Text>
           <Text style={styles.analysisStatus}>{analysisStatus}</Text>
         </View>
 
-        {/* Score */}
+        {/* Score - PROGRESSION 0-1700 */}
         <View style={styles.sleepinessContainer}>
           <Text style={styles.sleepinessLabel}>Score somnolence</Text>
           <View style={styles.sleepinessBar}>
@@ -231,25 +283,25 @@ export default function LiveScreen() {
               style={[
                 styles.sleepinessProgress,
                 {
-                  width: `${state.sleepiness}%`,
+                  width: `${(state.sleepiness / 1700) * 100}%`,
                   backgroundColor:
-                    state.sleepiness < 40
+                    state.sleepiness < 567
                       ? '#10b981'
-                      : state.sleepiness < 70
+                      : state.sleepiness < 1189
                       ? '#F59E0B'
                       : '#EF4444',
                 },
               ]}
             />
           </View>
-          <Text style={styles.sleepinessScore}>{state.sleepiness}/100</Text>
+          <Text style={styles.sleepinessScore}>{Math.round(state.sleepiness)}/1700</Text>
         </View>
 
         {/* Alerte */}
         {state.alertActive && (
           <View style={styles.alertBanner}>
             <Ionicons name="alert-circle" size={24} color="#fff" />
-            <Text style={styles.alertText}>🚨 SOMNOLENCE DÉTECTÉE!</Text>
+            <Text style={styles.alertText}>🚨 SOMMEIL DÉTECTÉ!</Text>
           </View>
         )}
 
@@ -320,6 +372,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusText: { fontSize: 12, fontWeight: '600' },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  timerText: { fontSize: 14, fontWeight: '700' },
   analysisContainer: {
     backgroundColor: 'rgba(100, 150, 255, 0.2)',
     paddingHorizontal: 12,
@@ -342,7 +403,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   sleepinessProgress: { height: '100%', borderRadius: 4 },
-  sleepinessScore: { color: '#fff', fontSize: 12, fontWeight: '700', textAlign: 'right' },
+  sleepinessScore: { color: '#fff', fontSize: 12, fontWeight: '700', textAlign: 'right', marginTop: 4 },
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',

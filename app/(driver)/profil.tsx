@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useUser } from "../../context/UserContext";
 
-const API_BASE_URL = "http://12.0.3.9:8000";
+const API_BASE_URL = "http://12.0.0.59:8000";
 
 export default function DriverProfil() {
   // ✅ Charger user ET vehicle depuis le context

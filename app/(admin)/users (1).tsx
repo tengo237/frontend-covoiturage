@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, ScrollView, ActivityIndicator, Alert, Pressable } from 'react-native';
 import { useAdminUsers } from '../../hooks/useAdminUsers';
 
-const API_BASE_URL = 'http://12.0.3.9:8000';
+const API_BASE_URL = 'http://12.0.0.59:8000';
 
 export default function UsersPage() {
   const { users, loading, error, fetchUsers, toggleUserActive } = useAdminUsers();

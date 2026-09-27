@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://12.0.3.9:8000';
+const API_BASE_URL = 'http://12.0.0.59:8000';
 
 // ============================================
 // TYPES & INTERFACES
@@ -20,7 +20,6 @@ export interface User {
   updated_at: string;
 }
 
-// ✅ NOUVEAU: Interface Vehicle
 export interface Vehicle {
   id: number;
   user_id: number;
@@ -41,15 +40,15 @@ export interface LoginCredentials {
 interface UserContextType {
   user: User | null;
   token: string | null;
-  vehicle: Vehicle | null;  // ✅ NOUVEAU
+  vehicle: Vehicle | null;
   loading: boolean;
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   signup: (data: any) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: () => Promise<void>;
-  loadVehicle: () => Promise<void>;  // ✅ NOUVEAU
-  updateVehicle: (data: any) => Promise<void>;  // ✅ NOUVEAU
+  loadVehicle: () => Promise<void>;
+  updateVehicle: (data: any) => Promise<void>;
   clearError: () => void;
 }
 
@@ -66,7 +65,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);  // ✅ NOUVEAU
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
@@ -86,18 +85,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       const storedToken = await AsyncStorage.getItem('userToken');
       const storedUser = await AsyncStorage.getItem('user');
-      const storedVehicle = await AsyncStorage.getItem('vehicle');  // ✅ NOUVEAU
+      const storedVehicle = await AsyncStorage.getItem('vehicle');
 
       console.log('💾 Token stocké:', storedToken ? storedToken.slice(0, 30) + '...' : 'NON');
       console.log('💾 User stocké:', storedUser ? 'OUI' : 'NON');
-      console.log('💾 Vehicle stocké:', storedVehicle ? 'OUI' : 'NON');  // ✅ NOUVEAU
+      console.log('💾 Vehicle stocké:', storedVehicle ? 'OUI' : 'NON');
 
       if (storedToken && storedUser) {
         console.log('✅ Session restaurée');
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         
-        // ✅ NOUVEAU: Charger le véhicule aussi
         if (storedVehicle) {
           console.log('✅ Véhicule restauré');
           setVehicle(JSON.parse(storedVehicle));
@@ -113,7 +111,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ============================================
-  // LOGIN - VRAI BACKEND
+  // LOGIN - OPTIMISÉ (RAPIDE!)
   // ============================================
 
   const login = async (credentials: LoginCredentials) => {
@@ -156,9 +154,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setToken(data.token);
       setUser(data.user);
 
-      // ✅ NOUVEAU: Charger le véhicule après login
-      console.log('🔵 Chargement du véhicule après login...');
-      await loadVehicle(data.token);
+      console.log('✅ Login complété - Redirection immédiate!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur de connexion';
       console.error('🔴 Login error:', message);
@@ -170,7 +166,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ============================================
-  // SIGNUP - VRAI BACKEND
+  // SIGNUP - OPTIMISÉ (RAPIDE!)
   // ============================================
 
   const signup = async (data: any) => {
@@ -210,9 +206,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setToken(result.token);
       setUser(result.user);
 
-      // ✅ NOUVEAU: Charger le véhicule après signup
-      console.log('🔵 Chargement du véhicule après signup...');
-      await loadVehicle(result.token);
+      console.log('✅ Signup complété - Redirection immédiate!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur';
       console.error('🔴 Signup error:', message);
@@ -266,7 +260,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ============================================
-  // LOAD VEHICLE - ✅ NOUVEAU
+  // LOAD VEHICLE - AVEC TIMEOUT
   // ============================================
 
   const loadVehicle = async (tokenToUse?: string) => {
@@ -280,13 +274,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       console.log('🔵 Chargement du véhicule...');
 
+      // ✅ OPTIMISÉ: Ajouter un timeout de 5 secondes
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch(`${API_BASE_URL}/api/vehicles/my-vehicle`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${tokenForRequest}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       console.log('📩 Status:', response.status);
 
@@ -323,7 +324,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ============================================
-  // UPDATE VEHICLE - ✅ NOUVEAU
+  // UPDATE VEHICLE
   // ============================================
 
   const updateVehicle = async (vehicleData: any) => {
@@ -387,13 +388,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('vehicle');  // ✅ NOUVEAU
+      await AsyncStorage.removeItem('vehicle');
 
       console.log('✅ Données supprimées');
 
       setToken(null);
       setUser(null);
-      setVehicle(null);  // ✅ NOUVEAU
+      setVehicle(null);
     } catch (err) {
       console.error('🔴 Logout error:', err);
     } finally {
@@ -416,25 +417,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const value: UserContextType = {
     user,
     token,
-    vehicle,  // ✅ NOUVEAU
+    vehicle,
     loading,
     error,
     login,
     signup,
     logout,
     updateUser,
-    loadVehicle,  // ✅ NOUVEAU
-    updateVehicle,  // ✅ NOUVEAU
+    loadVehicle,
+    updateVehicle,
     clearError,
   };
 
   console.log('📊 UserContext State:', {
     hasUser: !!user,
     hasToken: !!token,
-    hasVehicle: !!vehicle,  // ✅ NOUVEAU
+    hasVehicle: !!vehicle,
     loading,
     userEmail: user?.email,
-    vehicleInfo: vehicle ? `${vehicle.brand} ${vehicle.model}` : 'none',  // ✅ NOUVEAU
+    vehicleInfo: vehicle ? `${vehicle.brand} ${vehicle.model}` : 'none',
   });
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

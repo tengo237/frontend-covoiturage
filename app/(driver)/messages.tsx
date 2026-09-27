@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../../context/UserContext";
 
-const API_BASE_URL = "http://12.0.3.9:8000";
+const API_BASE_URL = "http://12.0.0.59:8000";
 
 interface Conversation {
   id: number;
@@ -126,7 +126,7 @@ export default function MessagesScreen() {
   // ✅ Récupérer l'URL de la photo
   const getImageUrl = (url: string | null | undefined) => {
     if (!url) return null;
-    if (url.includes("12.0.13.180")) return url.replace("12.0.13.180", "12.0.3.9");
+    if (url.includes("12.0.13.180")) return url.replace("12.0.13.180", "12.0.0.59");
     if (url.startsWith("http")) return url;
     return `${API_BASE_URL}${url}`;
   };

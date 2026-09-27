@@ -17,14 +17,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useUser } from '../../context/UserContext';
 
-const API_BASE_URL = 'http://12.0.3.9:8000';
+const API_BASE_URL = 'http://12.0.0.59:8000';
 
 // ✅ CORRECTION IP
 const getImageUrl = (photoUrl: string | null | undefined): string => {
   if (!photoUrl) return 'https://via.placeholder.com/200?text=Pas+de+photo';
   
   if (photoUrl.includes('12.0.13.180')) {
-    return photoUrl.replace('12.0.13.180', '12.0.3.9');
+    return photoUrl.replace('12.0.13.180', '12.0.0.59');
   }
   
   if (photoUrl.startsWith('http')) return photoUrl;

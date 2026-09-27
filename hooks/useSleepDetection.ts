@@ -1,4 +1,4 @@
-// hooks/useSleepDetection.ts - DEBUG VERSION FIXÉE
+// hooks/useSleepDetection.ts - DÉTECTION CLIGNEMENT vs SOMMEIL
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Accelerometer } from 'expo-sensors';
 import { AlarmManager } from '../utils/alarmManager';
@@ -23,41 +23,51 @@ export function useSleepDetection() {
   });
 
   const [facemeshModel, setFacemeshModel] = useState<any>(null);
-  const inactivityCounterRef = useRef(0);  // ← REF (synchrone!)
-  const lastAccelerationRef = useRef({ x: 0, y: 0, z: 0 });
-  const sensorSubscriptionRef = useRef<any>(null);
-  const isAlarmingRef = useRef(false);  // ← Flag pour éviter redéclenchement!
   const [isMonitoring, setIsMonitoring] = useState(false);
 
-  // Initialiser AlarmManager
+  // ✅ Refs pour le timing
+  const lastAccelerationRef = useRef({ x: 0, y: 0, z: 0 });
+  const sensorSubscriptionRef = useRef<any>(null);
+  const eyesClosedTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const eyesClosedStartTimeRef = useRef<number | null>(null);
+  const alarmTriggeredRef = useRef(false);
+  
+  // ✅ NOUVEAU: Pour distinguer clignement vs sommeil
+  const isBlinkRef = useRef(true);  // true = clignement, false = sommeil
+
   useEffect(() => {
-    console.log('[🔵 HOOK INIT] useSleepDetection component mounted');
+    console.log('[🔵 HOOK INIT] useSleepDetection mounted');
     
     const init = async () => {
       try {
-        console.log('[🔵 INIT] Initializing AlarmManager...');
         await AlarmManager.initialize();
         setFacemeshModel({ initialized: true });
-        console.log('[🔵 INIT] ✅ AlarmManager initialized');
+        console.log('[🔵 INIT] ✅ AlarmManager ready');
       } catch (error) {
-        console.error('[🔵 INIT] ❌ Error:', error);
+        console.error('[🔵 INIT] ❌', error);
       }
     };
 
     init();
 
     return () => {
-      console.log('[🔵 CLEANUP] useSleepDetection unmounting');
+      console.log('[🔵 CLEANUP] Unmounting');
+      if (eyesClosedTimerRef.current) {
+        clearInterval(eyesClosedTimerRef.current);
+      }
+      if (sensorSubscriptionRef.current) {
+        sensorSubscriptionRef.current.remove();
+      }
     };
   }, []);
 
-  // Démarrer monitoring
   const startMonitoring = useCallback(() => {
-    console.log('[🟢 START] 🚀 startMonitoring called!');
+    console.log('[🟢 START] Monitoring...');
     setIsMonitoring(true);
-    inactivityCounterRef.current = 0;  // ← Réinitialiser ref
-    isAlarmingRef.current = false;     // ← Réinitialiser flag
     lastAccelerationRef.current = { x: 0, y: 0, z: 0 };
+    alarmTriggeredRef.current = false;
+    eyesClosedStartTimeRef.current = null;
+    isBlinkRef.current = true;
 
     setState({
       isLoading: false,
@@ -69,115 +79,164 @@ export function useSleepDetection() {
     });
 
     try {
-      // Désabonner d'abord si déjà abonné
       if (sensorSubscriptionRef.current) {
-        console.log('[🟢 START] Removing old subscription first...');
         sensorSubscriptionRef.current.remove();
       }
 
-      console.log('[🟢 START] Setting accelerometer interval to 1000ms...');
       Accelerometer.setUpdateInterval(1000);
 
-      console.log('[🟢 START] Adding accelerometer listener...');
-      const subscription = Accelerometer.addListener((accelerometerData) => {
-        const { x, y, z } = accelerometerData;
-
+      const subscription = Accelerometer.addListener((data) => {
+        const { x, y, z } = data;
         const deltaX = Math.abs(x - lastAccelerationRef.current.x);
         const deltaY = Math.abs(y - lastAccelerationRef.current.y);
         const deltaZ = Math.abs(z - lastAccelerationRef.current.z);
         const totalDelta = deltaX + deltaY + deltaZ;
 
-        console.log(
-          '[📊 ACCEL] x:',
-          x.toFixed(3),
-          'y:',
-          y.toFixed(3),
-          'z:',
-          z.toFixed(3),
-          '| ΔTotal:',
-          totalDelta.toFixed(3)
-        );
-
+        console.log(`[📊] Δ=${totalDelta.toFixed(2)}`);
         lastAccelerationRef.current = { x, y, z };
 
-        // Très faible mouvement (seuil élevé = besoin de plus de mouvement pour reset)
+        // ✅ PEU DE MOUVEMENT = YEUX FERMÉS
         if (totalDelta < 2.0) {
-          // Incrémenter le compteur (synchrone via ref!)
-          inactivityCounterRef.current += 1;
-          const newCounter = inactivityCounterRef.current;
-          
-          console.log('[⚠️ INACTIVE] Counter:', newCounter, '(Δ:', totalDelta.toFixed(3) + ')');
+          // Yeux viennent de se fermer
+          if (!eyesClosedStartTimeRef.current) {
+            console.log('[👁️ EYES CLOSED] Starting timer');
+            eyesClosedStartTimeRef.current = Date.now();
+            isBlinkRef.current = true;  // ✅ Assume clignement au départ
 
-          let sleepScore = 0;
+            // Démarrer le timer
+            if (eyesClosedTimerRef.current) {
+              clearInterval(eyesClosedTimerRef.current);
+            }
 
-          if (newCounter >= 3) {
-            sleepScore = Math.min(newCounter * 20, 100);
-            console.log('[😴 SLEEPY] Score:', sleepScore);
+            eyesClosedTimerRef.current = setInterval(() => {
+              if (!eyesClosedStartTimeRef.current) return;
+
+              const elapsed = Math.floor(
+                (Date.now() - eyesClosedStartTimeRef.current) / 1000
+              );
+
+              // ✅ NOUVELLE LOGIQUE: Distinguer clignement vs sommeil
+              
+              // Si < 2 sec = clignement (score = 0)
+              if (elapsed < 2) {
+                console.log(`[👁️ BLINK] ${elapsed}s (score = 0)`);
+                setState((prev) => ({
+                  ...prev,
+                  sleepiness: 0,
+                  eyesClosed: true,
+                }));
+                isBlinkRef.current = true;
+              } 
+              // Si >= 2 sec = sommeil (score monte)
+              else if (elapsed >= 2 && !alarmTriggeredRef.current) {
+                isBlinkRef.current = false;
+                console.log(`[😴 SLEEP] ${elapsed}s / 30s`);
+
+                // Calculer le score: (temps depuis 2 sec / 28 sec) × 1700
+                // Donc à sec 2  → 0
+                //      à sec 30 → 1700
+                const sleepElapsed = elapsed - 2;  // Temps depuis le début du sommeil
+                const score = Math.min((sleepElapsed / 28) * 1700, 1700);
+
+                setState((prev) => ({
+                  ...prev,
+                  sleepiness: score,
+                  eyesClosed: true,
+                }));
+
+                // ✅ À 30 SEC: ALARME!
+                if (elapsed >= 30 && !alarmTriggeredRef.current) {
+                  console.log('[🚨 ALARM! 30 SECONDS OF REAL SLEEP!]');
+                  alarmTriggeredRef.current = true;
+
+                  setState((prev) => ({
+                    ...prev,
+                    sleepiness: 1700,
+                    alertActive: true,
+                    eyesClosed: true,
+                  }));
+
+                  // Trigger alarme
+                  AlarmManager.triggerAlarm().catch((e) => 
+                    console.error('[❌ Alarm error:', e)
+                  );
+
+                  // Arrêter le timer
+                  if (eyesClosedTimerRef.current) {
+                    clearInterval(eyesClosedTimerRef.current);
+                    eyesClosedTimerRef.current = null;
+                  }
+                }
+              }
+            }, 1000);
+          }
+        } 
+        // ✅ MOUVEMENT = YEUX OUVERTS
+        else {
+          console.log('[✅ EYES OPEN]');
+
+          // ✅ Si c'était un clignement (< 2 sec), reset le score à 0
+          if (isBlinkRef.current && eyesClosedStartTimeRef.current) {
+            const closedDuration = Math.floor(
+              (Date.now() - eyesClosedStartTimeRef.current) / 1000
+            );
+            
+            if (closedDuration < 2) {
+              console.log(`[✅ BLINK DETECTED] (${closedDuration}s) - Score reset to 0`);
+              setState((prev) => ({
+                ...prev,
+                sleepiness: 0,
+                eyesClosed: false,
+              }));
+            }
           }
 
-          // TRIGGER ALARME SEULEMENT SI PAS DÉJÀ EN ALARME!
-          if (newCounter >= 4 && !isAlarmingRef.current) {
-            isAlarmingRef.current = true;  // ← SET FLAG!
-            console.log('[🚨 ALARM TRIGGER!] Counter:', newCounter);
+          // Arrêter le timer
+          if (eyesClosedTimerRef.current) {
+            clearInterval(eyesClosedTimerRef.current);
+            eyesClosedTimerRef.current = null;
+          }
 
+          eyesClosedStartTimeRef.current = null;
+          isBlinkRef.current = true;
+
+          // Si l'alarme n'a pas été déclenchée, reset complètement
+          if (!alarmTriggeredRef.current) {
             setState((prev) => ({
               ...prev,
-              sleepiness: 100,
-              eyesClosed: true,
-              alertActive: true,
-            }));
-
-            AlarmManager.triggerAlarm();
-          } else {
-            setState((prev) => ({
-              ...prev,
-              sleepiness: sleepScore,
-              eyesClosed: newCounter > 0,
-              alertActive: isAlarmingRef.current,
+                sleepiness: 0,
+              eyesClosed: false,
             }));
           }
-        } else {
-          // MOUVEMENT SIGNIFICATIF DÉTECTÉ!
-          console.log('[✅ STRONG MOVEMENT] Delta:', totalDelta.toFixed(3), '→ Auto-stopping alarm!');
-          
-          // Réinitialiser (synchrone!)
-          inactivityCounterRef.current = 0;
-          isAlarmingRef.current = false;  // ← RESET FLAG!
-          
-          AlarmManager.stopAlarm();
-          
-          setState((prev) => ({
-            ...prev,
-            sleepiness: 0,
-            eyesClosed: false,
-            alertActive: false,
-          }));
         }
       });
 
       sensorSubscriptionRef.current = subscription;
-      console.log('[✅ START] Monitoring started successfully!');
+      console.log('[✅] Monitoring started');
     } catch (error) {
-      console.error('[❌ START] Error:', error);
-      alert('Erreur: ' + String(error));
+      console.error('[❌] Start error:', error);
     }
   }, []);
 
-  // Arrêter monitoring
   const stopMonitoring = useCallback(() => {
-    console.log('[🛑 STOP] Stopping monitoring...');
+    console.log('[🛑] Stopping monitoring');
     setIsMonitoring(false);
 
+    if (eyesClosedTimerRef.current) {
+      clearInterval(eyesClosedTimerRef.current);
+      eyesClosedTimerRef.current = null;
+    }
+
     if (sensorSubscriptionRef.current) {
-      console.log('[🛑 STOP] Removing subscription...');
       sensorSubscriptionRef.current.remove();
       sensorSubscriptionRef.current = null;
     }
 
-    AlarmManager.stopAlarm();
-    inactivityCounterRef.current = 0;     // ← Utiliser ref
-    isAlarmingRef.current = false;        // ← Reset flag
-    lastAccelerationRef.current = { x: 0, y: 0, z: 0 };
+    AlarmManager.stopAlarm().catch((e) => console.error('[❌]', e));
+
+    eyesClosedStartTimeRef.current = null;
+    alarmTriggeredRef.current = false;
+    isBlinkRef.current = true;
 
     setState((prev) => ({
       ...prev,
@@ -186,39 +245,40 @@ export function useSleepDetection() {
       eyesClosed: false,
     }));
 
-    console.log('[🛑 STOP] ✅ Stopped');
+    console.log('[✅] Stopped');
   }, []);
 
-  // Dummy - capteurs s'en chargent
-  const analyzeFace = useCallback(async (frameUri: string) => {
-    console.log('[FRAME] Frame received (capteurs actifs)');
-  }, []);
-
-  // Stop alarm
   const stopAlarm = useCallback(async () => {
-    console.log('[⏸️ DISMISS] User dismissed alarm');
+    console.log('[⏸️] Dismissing alarm');
+
     await AlarmManager.stopAlarm();
 
-    inactivityCounterRef.current = 0;      // ← Utiliser ref (SYNCHRONE!)
-    isAlarmingRef.current = false;         // ← Reset flag (SYNCHRONE!)
-    
+    if (eyesClosedTimerRef.current) {
+      clearInterval(eyesClosedTimerRef.current);
+      eyesClosedTimerRef.current = null;
+    }
+
+    eyesClosedStartTimeRef.current = null;
+    alarmTriggeredRef.current = false;
+    isBlinkRef.current = true;
+
     setState((prev) => ({
       ...prev,
       alertActive: false,
       sleepiness: 0,
       eyesClosed: false,
     }));
-    
-    console.log('[⏸️ DISMISS] ✅ Alarm stopped and counters reset');
+
+    console.log('[✅] Alarm dismissed');
   }, []);
 
   return {
     state,
-    analyzeFace,
     facemeshModel,
     stopAlarm,
     startMonitoring,
     stopMonitoring,
     isMonitoring,
+    analyzeFace: async () => {},
   };
 }

@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { useUser } from '../context/UserContext';
 import * as ImagePicker from 'expo-image-picker';
 
-const API_BASE_URL = 'http://12.0.3.9:8000';
+const API_BASE_URL = 'http://12.0.0.59:8000';
 
 const getImageUrl = (url: string | null) => {
   if (!url) return 'https://via.placeholder.com/100?text=User';

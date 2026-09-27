@@ -14,7 +14,7 @@ import { router, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../../context/UserContext";
 
-const API_BASE_URL = "http://12.0.3.9:8000";
+const API_BASE_URL = "http://12.0.0.59:8000";
 
 interface Trip {
   id: number;
@@ -276,7 +276,7 @@ export default function DriverTripsScreen() {
               marginBottom: 4,
             }}
           >
-            Bienvenue, {user?.name?.split(" ")[0] || "Conducteur"}! 🚗
+            Bienvenue, {user?.name?.split(" ")[0] || "Conducteur"}! 
           </Text>
           <Text
             style={{
@@ -407,7 +407,7 @@ export default function DriverTripsScreen() {
                 marginBottom: 4,
               }}
             >
-              💰 Revenus totaux
+               Revenus totaux
             </Text>
             <Text
               style={{
@@ -596,7 +596,7 @@ export default function DriverTripsScreen() {
               marginBottom: 12,
             }}
           >
-            📍 Mes trajets actifs
+             Mes trajets actifs
           </Text>
 
           {loading ? (

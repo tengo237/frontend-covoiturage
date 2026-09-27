@@ -16,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../context/UserContext';
 
-const API_BASE_URL = 'http://12.0.3.9:8000';
+const API_BASE_URL = 'http://12.0.0.59:8000';
 
 const getImageUrl = (url: string | null) => {
   if (!url) return 'https://via.placeholder.com/50?text=User';

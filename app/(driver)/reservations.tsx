@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../../context/UserContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_BASE_URL = "http://12.0.3.9:8000";
+const API_BASE_URL = "http://12.0.0.59:8000";
 
 interface Reservation {
   id: number;
