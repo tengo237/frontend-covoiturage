@@ -4,7 +4,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAdminSignalements } from "../../hooks/useAdminSignalements";
 
+// ✅ CORRIGÉ: Ajouter "pending" au STATUS_CONFIG
 const STATUS_CONFIG = {
+  pending: { label: 'En attente', color: '#F59E0B', bgColor: 'bg-warning-50', icon: 'time' },  // ✅ NOUVEAU!
   open: { label: 'Ouvert', color: '#EF4444', bgColor: 'bg-danger-50', icon: 'alert-circle' },
   investigating: { label: 'En enquête', color: '#F59E0B', bgColor: 'bg-warning-50', icon: 'search' },
   resolved: { label: 'Résolu', color: '#10B981', bgColor: 'bg-success-50', icon: 'checkmark-circle' },
@@ -12,10 +14,11 @@ const STATUS_CONFIG = {
 };
 
 const ALERT_TYPES = {
-  accident: '🚗 Accident',
-  dangerous_driving: '⚠️ Conduite dangereuse',
-  speeding: '🚗 Excès de vitesse',
-  reckless: '😠 Conduite imprudente',
+  accident: ' Accident',
+  dangerous_driving: ' Conduite dangereuse',
+  speeding: ' Excès de vitesse',
+  reckless: ' Conduite imprudente',
+  sos: ' SOS d\'urgence',  // ✅ Ajouter SOS!
   other: '📋 Autre',
 };
 
@@ -23,7 +26,8 @@ export default function SignalementsPage() {
   const { signalements, loading, error, updateStatus, filterStatus, setFilterStatus } = useAdminSignalements();
   const [updating, setUpdating] = useState<number | null>(null);
 
-  const statuses = ['open', 'investigating', 'resolved', 'closed'];
+  // ✅ CORRIGÉ: Ajouter "pending" au array statuses
+  const statuses = ['pending', 'open', 'investigating', 'resolved', 'closed'];  // ✅ Ajouter "pending"!
 
   const handleStatusChange = (id: number, newStatus: string) => {
     Alert.alert(
@@ -124,6 +128,11 @@ export default function SignalementsPage() {
           const statusConfig = STATUS_CONFIG[item.status as keyof typeof STATUS_CONFIG];
           const alertLabel = ALERT_TYPES[item.alert_type as keyof typeof ALERT_TYPES] || item.alert_type;
 
+          // ✅ Vérifier que statusConfig existe
+          if (!statusConfig) {
+            return null; // Ignorer si le statut n'existe pas
+          }
+
           return (
             <View className={`${statusConfig.bgColor} border-2 rounded-2xl p-4`} style={{ borderColor: statusConfig.color }}>
               {/* HEADER */}
@@ -206,7 +215,7 @@ export default function SignalementsPage() {
               <View className="bg-white/50 rounded-lg p-3 mb-3 flex-row items-center gap-2">
                 <Ionicons name="map-outline" size={14} color="#3D2B1F" />
                 <Text className="font-body text-xs text-brun-muted flex-1">
-                  📍 {item.latitude?.toFixed(4)}, {item.longitude?.toFixed(4)}
+                  📍 {item.latitude?.toFixed(4) || 'N/A'}, {item.longitude?.toFixed(4) || 'N/A'}
                 </Text>
               </View>
 

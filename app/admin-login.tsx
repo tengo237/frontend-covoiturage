@@ -52,7 +52,7 @@ export default function AdminLogin() {
                 Espace Administrateur
               </Text>
               <Text className="font-body text-brun-muted text-sm text-center">
-                Accès réservé aux administrateurs RIDE+
+                Accès réservé aux administrateurs 
               </Text>
             </View>
 
@@ -125,35 +125,7 @@ export default function AdminLogin() {
               </Text>
             </AnimatedPressable>
 
-            {/* Warning Banner */}
-            <View className="bg-red-50 border border-red-200 rounded-lg p-4 mt-8">
-              <View className="flex-row items-start gap-3">
-                <Ionicons name="warning" size={20} color="#991B1B" />
-                <View className="flex-1">
-                  <Text className="font-body-semibold text-xs text-red-900 mb-1">
-                    ⚠️ Accès Sécurisé
-                  </Text>
-                  <Text className="font-body text-xs text-red-800 leading-4">
-                    Cet espace est protégé. Seuls les administrateurs RIDE+ peuvent accéder à ce tableau de bord.
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Info Box */}
-            <View className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-              <Text className="font-body-semibold text-xs text-blue-900 mb-2">
-                💡 Besoin d'aide?
-              </Text>
-              <Text className="font-body text-xs text-blue-800">
-                Si vous n'êtes pas administrateur, veuillez utiliser la connexion standard.
-              </Text>
-            </View>
-
-            {/* T.O.S */}
-            <Text className="font-body text-xs text-brun-muted text-center leading-5 mt-8">
-              Accès à l'administration RIDE+ - Tous les accès sont enregistrés
-            </Text>
+           
           </View>
         </View>
       </ScrollView>

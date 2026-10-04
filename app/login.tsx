@@ -138,7 +138,7 @@ export default function Login() {
               <Ionicons name="car-sport" size={30} color="#FBF6EF" />
             </View>
             <Text className="font-display-bold text-brun text-2xl mb-1">
-              {mode === "login" ? "Connexion à RIDE+" : "Créer un compte"}
+              {mode === "login" ? "Connexion " : "Créer un compte"}
             </Text>
             <Text className="font-body text-brun-muted text-sm">
               {mode === "login"
@@ -233,21 +233,10 @@ export default function Login() {
           </Pressable>
 
           <Text className="font-body text-xs text-brun-muted text-center leading-5 mb-6">
-            En continuant, vous acceptez les conditions d'utilisation de RIDE+.
+            En continuant, vous acceptez les conditions d'utilisation .
           </Text>
 
-          {/* TEST ACCOUNTS INFO */}
-          <View className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-            <Text className="font-body-semibold text-xs text-blue-900 mb-2">
-              🧪 Comptes de test:
-            </Text>
-            <Text className="font-body text-xs text-blue-800 mb-1">
-              Dual (Passager + Conducteur): test@example.com / password123
-            </Text>
-            <Text className="font-body text-xs text-blue-800">
-              Passager: passenger@example.com / password123
-            </Text>
-          </View>
+          
 
           <Pressable
             onPress={() => router.push("/admin-login")}

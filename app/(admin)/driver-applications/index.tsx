@@ -12,7 +12,7 @@ export default function DriverApplicationsPage() {
   const handleApprove = (id: number, name: string) => {
     Alert.alert(
       'Confirmer',
-      `Approuver ${name} en tant que conducteur?`,
+      `Approuver le véhicule de ${name}?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -22,7 +22,7 @@ export default function DriverApplicationsPage() {
             try {
               setUpdating(id);
               await approveDriver(id);
-              Alert.alert('Succès', 'Conducteur approuvé');
+              Alert.alert('Succès', 'Conducteur approuvé - Il peut maintenant publier des trajets!');
             } catch (err) {
               Alert.alert('Erreur', 'Impossible d\'approuver');
             } finally {
@@ -95,78 +95,136 @@ export default function DriverApplicationsPage() {
           <View className="bg-white border border-brun/10 rounded-2xl p-4">
             {/* HEADER AVEC PHOTO */}
             <View className="flex-row items-start gap-3 mb-3">
-              {item.photo_url ? (
+              {item.vehicle_photo_url ? (
                 <Image
-                  source={{ uri: item.photo_url }}
-                  className="w-14 h-14 rounded-full bg-teal-50"
+                  source={{ uri: `http://12.0.0.59:8000${item.vehicle_photo_url}` }}
+                  className="w-14 h-14 rounded-lg bg-brun/10"
                 />
               ) : (
-                <View className="w-14 h-14 rounded-full bg-teal-50 items-center justify-center">
-                  <Ionicons name="person" size={24} color="#0F6E56" />
+                <View className="w-14 h-14 rounded-lg bg-brun/10 items-center justify-center">
+                  <Ionicons name="car" size={24} color="#D85A30" />
                 </View>
               )}
 
               <View className="flex-1">
+                {/* NOM DU CONDUCTEUR */}
                 <Text className="font-display-semibold text-sm text-brun">
-                  {item.name}
+                  {item.driver_name}
                 </Text>
+                
+                {/* EMAIL */}
                 <Text className="font-body text-xs text-brun-muted mt-1">
-                  {item.email}
+                  {item.driver_email}
                 </Text>
-                {item.phone && (
-                  <Text className="font-body text-xs text-brun-muted mt-1">
-                    📞 {item.phone}
+
+                {/* INFO VÉHICULE */}
+                <View className="mt-2 bg-brun/5 rounded px-2 py-1">
+                  <Text className="font-body-semibold text-xs text-brun">
+                    {item.brand} {item.model}
                   </Text>
-                )}
+                  <Text className="font-body text-xs text-brun-muted">
+                    📋 {item.plate}
+                  </Text>
+                </View>
               </View>
 
-              <Ionicons name="car-outline" size={24} color="#D85A30" />
+              <View className="items-center">
+                <Ionicons name="car-outline" size={24} color="#D85A30" />
+                <Text className="font-body text-xs text-brun-muted mt-1">
+                  {item.is_verified ? '✅' : '⏳'}
+                </Text>
+              </View>
+            </View>
+
+            {/* DOCUMENTS SOUMIS */}
+            <View className="bg-brun/5 rounded-lg p-3 mb-4">
+              <Text className="font-body-semibold text-xs text-brun mb-2">
+                📄 Documents soumis:
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                {item.vehicle_photo_url && (
+                  <View className="flex-row items-center gap-1 bg-white px-2 py-1 rounded">
+                    <Ionicons name="car-outline" size={12} color="#D85A30" />
+                    <Text className="font-body text-xs text-brun">Véhicule</Text>
+                  </View>
+                )}
+                {item.id_doc_url && (
+                  <View className="flex-row items-center gap-1 bg-white px-2 py-1 rounded">
+                    <Ionicons name="card-outline" size={12} color="#D85A30" />
+                    <Text className="font-body text-xs text-brun">CNI</Text>
+                  </View>
+                )}
+                {item.registration_doc_url && (
+                  <View className="flex-row items-center gap-1 bg-white px-2 py-1 rounded">
+                    <Ionicons name="document-outline" size={12} color="#D85A30" />
+                    <Text className="font-body text-xs text-brun">Permis</Text>
+                  </View>
+                )}
+                {item.selfie_url && (
+                  <View className="flex-row items-center gap-1 bg-white px-2 py-1 rounded">
+                    <Ionicons name="person-outline" size={12} color="#D85A30" />
+                    <Text className="font-body text-xs text-brun">Selfie</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             {/* INFO DATE */}
             <View className="bg-brun/5 rounded-lg p-3 mb-4">
               <Text className="font-body text-xs text-brun-muted">
-                📅 Demande soumise le {new Date(item.created_at).toLocaleDateString('fr-FR')}
+                📅 Dossier soumis le {new Date(item.created_at).toLocaleDateString('fr-FR')}
               </Text>
               <Text className="font-body text-xs text-brun-muted mt-1">
-                Rôle actuel: {item.current_role || 'Non défini'}
+                Statut: {item.is_verified ? '✅ Validé' : '⏳ En attente'}
               </Text>
             </View>
 
-            {/* ACTIONS */}
-            <View className="flex-row gap-2">
-              <Pressable
-                onPress={() => handleReject(item.id, item.name)}
-                disabled={updating === item.id}
-                className="flex-1 border-2 border-danger-400 rounded-lg py-3 items-center active:opacity-70"
-                style={{ opacity: updating === item.id ? 0.5 : 1 }}
-              >
-                {updating === item.id ? (
-                  <ActivityIndicator size="small" color="#D8453C" />
-                ) : (
-                  <View className="flex-row items-center gap-1">
-                    <Ionicons name="close-outline" size={16} color="#D8453C" />
-                    <Text className="font-body-semibold text-xs text-danger-600">Refuser</Text>
-                  </View>
-                )}
-              </Pressable>
+            {/* ACTIONS - Seulement si pas encore vérifié */}
+            {!item.is_verified && (
+              <View className="flex-row gap-2">
+                <Pressable
+                  onPress={() => handleReject(item.id, item.driver_name)}
+                  disabled={updating === item.id}
+                  className="flex-1 border-2 border-danger-400 rounded-lg py-3 items-center active:opacity-70"
+                  style={{ opacity: updating === item.id ? 0.5 : 1 }}
+                >
+                  {updating === item.id ? (
+                    <ActivityIndicator size="small" color="#D8453C" />
+                  ) : (
+                    <View className="flex-row items-center gap-1">
+                      <Ionicons name="close-outline" size={16} color="#D8453C" />
+                      <Text className="font-body-semibold text-xs text-danger-600">Refuser</Text>
+                    </View>
+                  )}
+                </Pressable>
 
-              <Pressable
-                onPress={() => handleApprove(item.id, item.name)}
-                disabled={updating === item.id}
-                className="flex-1 bg-success-600 rounded-lg py-3 items-center active:opacity-70"
-                style={{ opacity: updating === item.id ? 0.5 : 1 }}
-              >
-                {updating === item.id ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <View className="flex-row items-center gap-1">
-                    <Ionicons name="checkmark-outline" size={16} color="#fff" />
-                    <Text className="font-body-semibold text-xs text-white">Approuver</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
+                <Pressable
+                  onPress={() => handleApprove(item.id, item.driver_name)}
+                  disabled={updating === item.id}
+                  className="flex-1 bg-success-600 rounded-lg py-3 items-center active:opacity-70"
+                  style={{ opacity: updating === item.id ? 0.5 : 1 }}
+                >
+                  {updating === item.id ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <View className="flex-row items-center gap-1">
+                      <Ionicons name="checkmark-outline" size={16} color="#fff" />
+                      <Text className="font-body-semibold text-xs text-white">Valider</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+            )}
+
+            {/* MESSAGE SI VALIDÉ */}
+            {item.is_verified && (
+              <View className="bg-success-50 rounded-lg p-3 flex-row items-center gap-2">
+                <Ionicons name="checkmark-circle" size={16} color="#0F6E56" />
+                <Text className="font-body-medium text-xs text-success-600 flex-1">
+                  Conducteur validé - Peut publier des trajets
+                </Text>
+              </View>
+            )}
           </View>
         )}
         ListEmptyComponent={

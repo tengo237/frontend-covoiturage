@@ -1,11 +1,25 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../../context/UserContext";
 
 export default function DriverLayout() {
-  const { user, loading } = useUser();
+  const { user, token, vehicle, loading, loadVehicle } = useUser();
+
+  // ✅ Charger le véhicule au démarrage (avec délai!)
+  useEffect(() => {
+    if (token && !vehicle) {
+      console.log('🚗 [DRIVER LAYOUT] Chargement du véhicule...');
+      
+      // ✅ DÉLAI DE 500MS - IMPORTANT!
+      const timeout = setTimeout(() => {
+        loadVehicle(token);
+      }, 500);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [token, vehicle]);
 
   // ✅ Vérifier si l'utilisateur a le rôle "driver"
   const isDriver = user && user.roles && user.roles.includes('driver');

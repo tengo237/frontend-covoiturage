@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,13 @@ import {
   Alert,
   ActivityIndicator,
   SafeAreaView,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '../context/UserContext';
 
-const API_BASE_URL = 'http://12.0.0.59:8000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.137.2:8000';
 
 type FormData = {
   brand: string;
@@ -53,6 +52,105 @@ const EMPTY_FORM: FormData = {
   facePhoto: null,
 };
 
+// ✅ COMPOSANTS DÉFINIS EN DEHORS - NE SONT PLUS RECRÉÉS!
+
+const FieldLabel = ({ children }: { children: string }) => (
+  <Text style={{ fontSize: 12, fontWeight: '500', color: '#9ca3af', marginBottom: 6 }}>
+    {children}
+  </Text>
+);
+
+const TextField = (
+  props: React.ComponentProps<typeof TextInput> & { label: string }
+) => {
+  const { label, ...rest } = props;
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <FieldLabel>{label}</FieldLabel>
+      <TextInput
+        style={{
+          backgroundColor: '#fff',
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          fontSize: 14,
+          color: '#1f2937',
+          borderWidth: 1,
+          borderColor: '#E8D5C4',
+        }}
+        placeholderTextColor="#9ca3af"
+        {...rest}
+      />
+    </View>
+  );
+};
+
+const PhotoPicker = ({
+  label,
+  photo,
+  onPick,
+  round,
+}: {
+  label: string;
+  photo: string | null;
+  onPick: () => void;
+  round?: boolean;
+}) => (
+  <View style={{ marginBottom: 16 }}>
+    <FieldLabel>{label}</FieldLabel>
+    <TouchableOpacity
+      onPress={onPick}
+      style={{
+        backgroundColor: '#fff',
+        borderRadius: round ? 90 : 10,
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        borderColor: '#E8D5C4',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: round ? 180 : '100%',
+        height: round ? 180 : 180,
+        alignSelf: round ? 'center' : 'auto',
+        overflow: 'hidden',
+      }}
+    >
+      {photo ? (
+        <Image
+          source={{ uri: photo }}
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: round ? 90 : 8,
+          }}
+        />
+      ) : (
+        <View style={{ alignItems: 'center' }}>
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: '#FEE8E0',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 8,
+            }}
+          >
+            <Ionicons
+              name={round ? 'person-outline' : 'camera-outline'}
+              size={22}
+              color="#D85A30"
+            />
+          </View>
+          <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '500' }}>
+            Ajouter une photo
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  </View>
+);
+
 export default function AddVehicle() {
   const router = useRouter();
   const { token } = useUser();
@@ -60,14 +158,40 @@ export default function AddVehicle() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
 
-  const update = (fields: Partial<FormData>) =>
+  // ✅ useCallback - Mémoriser les handlers
+  const handleBrandChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, brand: v }));
+  }, []);
+
+  const handleModelChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, model: v }));
+  }, []);
+
+  const handleColorChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, color: v }));
+  }, []);
+
+  const handlePlateChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, plate: v }));
+  }, []);
+
+  const handleSeatsChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, seats: v }));
+  }, []);
+
+  const handleLicenseNumberChange = useCallback((v: string) => {
+    setForm(f => ({ ...f, licenseNumber: v }));
+  }, []);
+
+  const update = useCallback((fields: Partial<FormData>) => {
     setForm((f) => ({ ...f, ...fields }));
+  }, []);
 
   // ============================================
   // IMAGE PICKER FUNCTIONS
   // ============================================
 
-  const pickImage = async (
+  const pickImage = useCallback(async (
     field: keyof FormData,
     options?: { frontCamera?: boolean }
   ) => {
@@ -79,9 +203,9 @@ export default function AddVehicle() {
       { text: 'Galerie', onPress: () => launchLibrary(field) },
       { text: 'Annuler', style: 'cancel' },
     ]);
-  };
+  }, []);
 
-  const launchCamera = async (field: keyof FormData, frontCamera?: boolean) => {
+  const launchCamera = useCallback(async (field: keyof FormData, frontCamera?: boolean) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission requise', 'Autorisez l acces a l appareil photo.');
@@ -97,9 +221,9 @@ export default function AddVehicle() {
     if (!result.canceled) {
       update({ [field]: result.assets[0].uri } as Partial<FormData>);
     }
-  };
+  }, [update]);
 
-  const launchLibrary = async (field: keyof FormData) => {
+  const launchLibrary = useCallback(async (field: keyof FormData) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(
@@ -109,20 +233,20 @@ export default function AddVehicle() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       quality: 0.7,
       allowsEditing: true,
     });
     if (!result.canceled) {
       update({ [field]: result.assets[0].uri } as Partial<FormData>);
     }
-  };
+  }, [update]);
 
   // ============================================
   // FILL TEST DATA
   // ============================================
 
-  const fillWithTestData = () => {
+  const fillWithTestData = useCallback(() => {
     setForm({
       brand: 'Toyota',
       model: 'Corolla',
@@ -140,13 +264,13 @@ export default function AddVehicle() {
         'https://via.placeholder.com/300x300/D85A30/FBF6EF?text=Selfie',
     });
     setStep(STEPS.length - 1);
-  };
+  }, []);
 
   // ============================================
   // VALIDATION
   // ============================================
 
-  const isStepValid = (): boolean => {
+  const isStepValid = useCallback((): boolean => {
     switch (step) {
       case 0:
         return (
@@ -169,13 +293,13 @@ export default function AddVehicle() {
       default:
         return false;
     }
-  };
+  }, [step, form]);
 
   // ============================================
   // SUBMIT
   // ============================================
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!token) {
       Alert.alert('Erreur', 'Vous devez etre connecte');
       return;
@@ -196,15 +320,13 @@ export default function AddVehicle() {
       formDataObj.append('color', form.color);
       formDataObj.append('plate', form.plate);
 
-      // Ajouter la photo du vehicule
+      // ✅ Ajouter la photo du vehicule - Convertir en Blob (compatible Expo)
       if (form.vehiclePhoto) {
-        const photoFile = {
-          uri: form.vehiclePhoto,
-          type: 'image/jpeg',
-          name: 'vehicle.jpg',
-        };
-        formDataObj.append('photo', photoFile as any);
-        console.log('[VEHICLE] Photo ajoutee au FormData');
+        console.log('[VEHICLE] Conversion image en Blob...');
+        const response = await fetch(form.vehiclePhoto);
+        const blob = await response.blob();
+        formDataObj.append('photo', blob, 'vehicle.jpg');
+        console.log('[VEHICLE] Photo (Blob) ajoutee au FormData');
       }
 
       const url = `${API_BASE_URL}/api/vehicles`;
@@ -250,26 +372,26 @@ export default function AddVehicle() {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [form, token, router]);
 
   // ============================================
   // NAVIGATION
   // ============================================
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (step < STEPS.length - 1) setStep((s) => s + 1);
-  };
+  }, [step]);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (step === 0) router.back();
     else setStep((s) => s - 1);
-  };
+  }, [step, router]);
 
   // ============================================
   // STEP DASHES
   // ============================================
 
-  const StepDashes = () => (
+  const StepDashes = useMemo(() => (
     <View
       style={{
         flexDirection: 'row',
@@ -292,108 +414,7 @@ export default function AddVehicle() {
         />
       ))}
     </View>
-  );
-
-  // ============================================
-  // COMPONENTS
-  // ============================================
-
-  const FieldLabel = ({ children }: { children: string }) => (
-    <Text style={{ fontSize: 12, fontWeight: '500', color: '#9ca3af', marginBottom: 6 }}>
-      {children}
-    </Text>
-  );
-
-  const TextField = (
-    props: React.ComponentProps<typeof TextInput> & { label: string }
-  ) => {
-    const { label, ...rest } = props;
-    return (
-      <View style={{ marginBottom: 16 }}>
-        <FieldLabel>{label}</FieldLabel>
-        <TextInput
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: 10,
-            paddingHorizontal: 14,
-            paddingVertical: 12,
-            fontSize: 14,
-            color: '#1f2937',
-            borderWidth: 1,
-            borderColor: '#E8D5C4',
-          }}
-          placeholderTextColor="#9ca3af"
-          {...rest}
-        />
-      </View>
-    );
-  };
-
-  const PhotoPicker = ({
-    label,
-    photo,
-    onPick,
-    round,
-  }: {
-    label: string;
-    photo: string | null;
-    onPick: () => void;
-    round?: boolean;
-  }) => (
-    <View style={{ marginBottom: 16 }}>
-      <FieldLabel>{label}</FieldLabel>
-      <TouchableOpacity
-        onPress={onPick}
-        style={{
-          backgroundColor: '#fff',
-          borderRadius: round ? 90 : 10,
-          borderWidth: 2,
-          borderStyle: 'dashed',
-          borderColor: '#E8D5C4',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: round ? 180 : '100%',
-          height: round ? 180 : 180,
-          alignSelf: round ? 'center' : 'auto',
-          overflow: 'hidden',
-        }}
-      >
-        {photo ? (
-          <Image
-            source={{ uri: photo }}
-            style={{
-              width: '100%',
-              height: '100%',
-              borderRadius: round ? 90 : 8,
-            }}
-          />
-        ) : (
-          <View style={{ alignItems: 'center' }}>
-            <View
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: '#FEE8E0',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 8,
-              }}
-            >
-              <Ionicons
-                name={round ? 'person-outline' : 'camera-outline'}
-                size={22}
-                color="#D85A30"
-              />
-            </View>
-            <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '500' }}>
-              Ajouter une photo
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
+  ), [step]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FBF6EF' }}>
@@ -401,6 +422,7 @@ export default function AddVehicle() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 20 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View
@@ -431,7 +453,7 @@ export default function AddVehicle() {
         </TouchableOpacity>
 
         {/* Step Indicator */}
-        <StepDashes />
+        {StepDashes}
 
         {/* Step Content */}
         {step === 0 && (
@@ -447,19 +469,19 @@ export default function AddVehicle() {
               label="Marque"
               placeholder="Ex: Toyota"
               value={form.brand}
-              onChangeText={(v) => update({ brand: v })}
+              onChangeText={handleBrandChange}
             />
             <TextField
               label="Modele"
               placeholder="Ex: Corolla"
               value={form.model}
-              onChangeText={(v) => update({ model: v })}
+              onChangeText={handleModelChange}
             />
             <TextField
               label="Couleur"
               placeholder="Ex: Gris"
               value={form.color}
-              onChangeText={(v) => update({ color: v })}
+              onChangeText={handleColorChange}
             />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
@@ -468,7 +490,7 @@ export default function AddVehicle() {
                   placeholder="LT 123 AB"
                   autoCapitalize="characters"
                   value={form.plate}
-                  onChangeText={(v) => update({ plate: v })}
+                  onChangeText={handlePlateChange}
                 />
               </View>
               <View style={{ width: 100 }}>
@@ -477,7 +499,7 @@ export default function AddVehicle() {
                   placeholder="4"
                   keyboardType="number-pad"
                   value={form.seats}
-                  onChangeText={(v) => update({ seats: v })}
+                  onChangeText={handleSeatsChange}
                 />
               </View>
             </View>
@@ -513,7 +535,7 @@ export default function AddVehicle() {
               placeholder="Ex: 0021458CM"
               autoCapitalize="characters"
               value={form.licenseNumber}
-              onChangeText={(v) => update({ licenseNumber: v })}
+              onChangeText={handleLicenseNumberChange}
             />
             <PhotoPicker
               label="Photo du permis (recto)"

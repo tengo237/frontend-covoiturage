@@ -203,7 +203,7 @@ export default function Profil() {
                 Évaluations
               </Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: '#1f2937', marginTop: 4 }}>
-                4.8 ⭐
+                4.8 
               </Text>
             </View>
 
@@ -224,30 +224,11 @@ export default function Profil() {
                 Trajets
               </Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: '#1f2937', marginTop: 4 }}>
-                12
+                
               </Text>
             </View>
 
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: '#fff',
-                paddingVertical: 16,
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: '#E8D5C4',
-              }}
-            >
-              <Ionicons name="heart" size={24} color="#ef4444" />
-              <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, fontWeight: '500' }}>
-                Sauvegardés
-              </Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1f2937', marginTop: 4 }}>
-                3
-              </Text>
-            </View>
+          
           </View>
         </View>
 

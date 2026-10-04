@@ -3,16 +3,22 @@ import { useUser } from '../context/UserContext';
 
 const API_BASE_URL = 'http://12.0.0.59:8000';
 
+// ✅ INTERFACE CORRIGÉE - Données du véhicule + info conducteur
 interface DriverRequest {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  photo_url: string;
-  roles: string;
-  current_role: string;
+  id: number;  // vehicle.id
+  user_id: number;  // vehicle.user_id
+  driver_name: string;  // driver.name
+  driver_email: string;  // driver.email
+  brand: string;
+  model: string;
+  plate: string;
+  color: string;
+  vehicle_photo_url: string;
+  id_doc_url: string;
+  registration_doc_url: string;
+  selfie_url: string;
+  is_verified: boolean;
   created_at: string;
-  is_active: boolean;
 }
 
 export function useAdminDriverRequests() {
@@ -30,24 +36,29 @@ export function useAdminDriverRequests() {
 
       try {
         setLoading(true);
-        console.log('[useAdminDriverRequests] Fetching...');
+        console.log('[useAdminDriverRequests] Fetching unverified vehicles...');
 
-        const response = await fetch(`${API_BASE_URL}/api/admin/driver-requests`, {
+        // ✅ APPELER LA NOUVELLE ROUTE
+        const response = await fetch(`${API_BASE_URL}/api/admin/unverified-vehicles`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
 
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
 
         const data = await response.json();
         console.log('[useAdminDriverRequests] Data:', data);
 
-        if (data.data) setRequests(data.data);
+        if (data.data) {
+          setRequests(data.data);
+        }
         setError(null);
       } catch (err: any) {
         console.error('[useAdminDriverRequests] Error:', err);
-        setError(err.message);
+        setError(err.message || 'Erreur lors du chargement');
       } finally {
         setLoading(false);
       }
@@ -56,25 +67,29 @@ export function useAdminDriverRequests() {
     fetchRequests();
   }, [token]);
 
-  const approveDriver = async (id: number) => {
+  // ✅ APPROUVER UN CONDUCTEUR - Valider le véhicule
+  const approveDriver = async (vehicleId: number) => {
     try {
-      console.log(`[useAdminDriverRequests] Approving ${id}`);
+      console.log(`[useAdminDriverRequests] Approving vehicle ${vehicleId}`);
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/drivers/${id}/approve`, {
-        method: 'PATCH',
+      // ✅ UTILISER LA NOUVELLE ROUTE
+      const response = await fetch(`${API_BASE_URL}/api/admin/vehicles/${vehicleId}/verify`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       });
 
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
 
       const data = await response.json();
       console.log('[useAdminDriverRequests] Approve successful:', data);
 
       // Retirer de la liste
-      setRequests(requests.filter(r => r.id !== id));
+      setRequests(requests.filter(r => r.id !== vehicleId));
 
       return data;
     } catch (err: any) {
@@ -83,25 +98,32 @@ export function useAdminDriverRequests() {
     }
   };
 
-  const rejectDriver = async (id: number, reason: string = '') => {
+  // ✅ REJETER UN CONDUCTEUR - Rejeter le véhicule
+  const rejectDriver = async (vehicleId: number, reason: string = '') => {
     try {
-      console.log(`[useAdminDriverRequests] Rejecting ${id}`);
+      console.log(`[useAdminDriverRequests] Rejecting vehicle ${vehicleId}`);
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/drivers/${id}/reject?reason=${encodeURIComponent(reason)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // ✅ UTILISER LA NOUVELLE ROUTE
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/vehicles/${vehicleId}/reject${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
 
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
 
       const data = await response.json();
       console.log('[useAdminDriverRequests] Reject successful:', data);
 
       // Retirer de la liste
-      setRequests(requests.filter(r => r.id !== id));
+      setRequests(requests.filter(r => r.id !== vehicleId));
 
       return data;
     } catch (err: any) {
